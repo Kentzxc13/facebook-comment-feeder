@@ -49,12 +49,13 @@ export function parseAriaCommentLabel(ariaLabel) {
 /**
  * Parses raw text chunks into clean comment fields.
  * Strips common Facebook UI artifacts like "Like · Reply · Share".
- * @param {{ authorText?: string, dateText?: string, bodyText?: string }} raw 
- * @returns {{ author: string, date: string, text: string }}
+ * @param {{ authorText?: string, dateText?: string, bodyText?: string, isReply?: boolean }} raw 
+ * @returns {{ author: string, date: string, text: string, threadType: string }}
  */
 export function parseCommentNode(raw) {
   const author = (raw?.authorText || '').trim() || 'Unknown';
   const date = (raw?.dateText || '').trim() || 'Unknown';
+  const threadType = raw?.isReply ? 'Nested Reply' : 'Parent Comment';
 
   let body = (raw?.bodyText || '').trim();
 
@@ -68,15 +69,103 @@ export function parseCommentNode(raw) {
   return {
     author,
     date,
-    text: body.trim()
+    text: body.trim(),
+    threadType
   };
+}
+
+/**
+ * Continuously strips login modals and fixed backdrop overlays from the page DOM.
+ * @param {import('playwright').Page} page
+ */
+export async function purgeOverlays(page) {
+  try {
+    await page.evaluate(() => {
+      // 1. Remove dialogs / login overlays
+      const dialogs = document.querySelectorAll('div[role="dialog"], div[aria-modal="true"]');
+      dialogs.forEach(d => {
+        const text = (d.textContent || '').toLowerCase();
+        if (text.includes('log in') || text.includes('see more on facebook') || text.includes('mag-log in') || text.includes('create new account')) {
+          d.remove();
+        }
+      });
+
+      // 2. Clear backdrop masks
+      const fixedOverlays = document.querySelectorAll('div[style*="position: fixed"]');
+      fixedOverlays.forEach(o => {
+        if (o.offsetHeight > 500 && o.offsetWidth > 500 && !o.querySelector('div[role="article"]')) {
+          o.remove();
+        }
+      });
+
+      // 3. Unlock scrolling
+      document.body.style.overflow = 'auto';
+      document.documentElement.style.overflow = 'auto';
+    });
+  } catch {}
+}
+
+/**
+ * Attempts to switch comment sorting from "Most relevant" to "All comments".
+ * @param {import('playwright').Page} page
+ * @param {(msg: string) => void} [onProgress]
+ */
+export async function switchToAllComments(page, onProgress = () => {}) {
+  try {
+    onProgress('Unlocking full view: Switching filter to "All comments"...');
+
+    // Click sort dropdown if found
+    const opened = await page.evaluate(() => {
+      const candidates = Array.from(document.querySelectorAll('div[role="button"], span[dir="auto"], div[aria-haspopup="menu"]'));
+      const sortBtn = candidates.find(el => {
+        const t = (el.textContent || '').trim().toLowerCase();
+        return (t.includes('most relevant') || t.includes('top comments') || t.includes('pinaka may-kaugnayan')) &&
+               !el.closest('div[role="article"]');
+      });
+
+      if (!sortBtn) return false;
+
+      let clickable = sortBtn;
+      while (clickable && clickable !== document.body && clickable.tagName !== 'BUTTON' && clickable.getAttribute('role') !== 'button') {
+        if (clickable.parentElement?.getAttribute('role') === 'button' || clickable.parentElement?.tagName === 'BUTTON') {
+          clickable = clickable.parentElement;
+          break;
+        }
+        clickable = clickable.parentElement;
+      }
+      (clickable || sortBtn).click();
+      return true;
+    });
+
+    if (opened) {
+      await page.waitForTimeout(800);
+      await page.evaluate(() => {
+        const menuItems = Array.from(document.querySelectorAll('div[role="menuitem"], div[role="menu"] span, div[role="dialog"] span'));
+        const allCommentsOption = menuItems.find(el => {
+          const t = (el.textContent || '').trim().toLowerCase();
+          return t.includes('all comments') || t.includes('lahat ng komento');
+        });
+        if (allCommentsOption) {
+          let c = allCommentsOption;
+          while (c && c !== document.body && c.getAttribute('role') !== 'menuitem') {
+            c = c.parentElement;
+          }
+          (c || allCommentsOption).click();
+          return true;
+        }
+        return false;
+      });
+      await page.waitForTimeout(2000);
+      onProgress('Successfully switched to "All comments" filter!');
+    }
+  } catch {}
 }
 
 /**
  * Launches Playwright Chromium to scrape public comments from a Facebook post URL.
  * @param {string} url - Facebook post URL
  * @param {(progressMsg: string) => void} [onProgress] - Callback for real-time progress updates
- * @returns {Promise<Array<{ id: string, author: string, date: string, text: string }>>}
+ * @returns {Promise<Array<{ id: string, author: string, date: string, text: string, threadType: string }>>}
  */
 export async function scrapeFacebookComments(url, onProgress = () => {}) {
   const validation = isValidFacebookUrl(url);
@@ -111,49 +200,42 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
 
     onProgress('Connecting to Facebook post...');
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
-    await page.waitForTimeout(3500);
+    await page.waitForTimeout(3000);
 
-    // Dismiss cookie banners and login dialog overlays
-    onProgress('Dismissing overlays and dialogs...');
-    const dismissSelectors = [
-      'div[aria-label="Close"]',
-      'div[role="dialog"] [aria-label="Close"]',
-      'button[data-cookiebanner="accept_button"]',
-      'button[data-cookiebanner="accept_only_essential_button"]',
-      'div[aria-label="Decline optional cookies"]',
-      'text="Not Now"'
-    ];
+    // Initial overlay purge
+    await purgeOverlays(page);
 
-    for (const selector of dismissSelectors) {
-      try {
-        const btn = await page.$(selector);
-        if (btn && await btn.isVisible()) {
-          await btn.click({ timeout: 1500 });
-          await page.waitForTimeout(600);
-        }
-      } catch {
-        // Non-blocking
-      }
-    }
+    // Step 1: Switch comment order from "Most relevant" to "All comments"
+    await switchToAllComments(page, onProgress);
 
-    // Expand comments iteratively by clicking "View more comments", replies, and scrolling
-    onProgress('Expanding comments and threads...');
-    const maxScrollRounds = 12;
+    // Initial overlay purge after sort click
+    await purgeOverlays(page);
+
+    // Step 2: Expand comments iteratively with multi-click and continuous overlay clearing
+    onProgress('Expanding comments and nested threads...');
+    const maxScrollRounds = 14;
 
     for (let round = 1; round <= maxScrollRounds; round++) {
-      const clickedText = await page.evaluate(() => {
+      await purgeOverlays(page);
+
+      // Expand both parent comments ("View more comments") and nested replies
+      const clickedCount = await page.evaluate(() => {
         const allSpans = Array.from(document.querySelectorAll('span, div[role="button"]'));
-        const target = allSpans.find(s => {
+        const targets = allSpans.filter(s => {
           const t = s.textContent.trim().toLowerCase();
           return t.includes('view more comments') ||
                  t.includes('view previous comments') ||
                  t.includes('tingnan ang higit pang') ||
                  t.includes('view all') ||
                  t.includes('replies') ||
-                 t.includes('reply');
+                 t.includes('reply') ||
+                 t.includes('sumagot') ||
+                 t.includes('sagot');
         });
 
-        if (target) {
+        let clicked = 0;
+        // Click up to 3 expandable targets per round
+        for (const target of targets.slice(0, 3)) {
           let clickable = target;
           while (clickable && clickable !== document.body && clickable.tagName !== 'BUTTON' && clickable.getAttribute('role') !== 'button') {
             if (clickable.parentElement?.getAttribute('role') === 'button' || clickable.parentElement?.tagName === 'BUTTON') {
@@ -162,21 +244,25 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
             }
             clickable = clickable.parentElement;
           }
-          (clickable || target).click();
-          return target.textContent.trim();
+          try {
+            (clickable || target).click();
+            clicked++;
+          } catch {}
         }
-        return null;
+        return clicked;
       });
 
-      if (clickedText) {
-        onProgress(`Expanding comments: Clicked "${clickedText.slice(0, 30)}" (Round ${round}/${maxScrollRounds})...`);
-        await page.waitForTimeout(2000);
+      if (clickedCount > 0) {
+        onProgress(`Expanded ${clickedCount} thread(s) (Round ${round}/${maxScrollRounds})...`);
+        await page.waitForTimeout(1600);
       } else {
-        // Gradual scroll to trigger dynamic lazy loading
-        await page.evaluate(() => window.scrollBy(0, 900));
-        await page.waitForTimeout(1500);
+        // Dynamic scroll to trigger dynamic lazy loading
+        await page.evaluate(() => window.scrollBy(0, 750));
+        await page.waitForTimeout(1200);
       }
     }
+
+    await purgeOverlays(page);
 
     onProgress('Extracting comment text and metadata...');
 
@@ -254,12 +340,19 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
             }
           }
 
+          // Detect nested thread structure
+          const isReply = a.closest('ul ul') !== null ||
+                          (a.parentElement?.closest('div[role="article"]') !== null) ||
+                          rawAria.toLowerCase().includes('reply') ||
+                          rawAria.toLowerCase().includes('sagot');
+
           if (author || bodyText || rawAria) {
             results.push({
               rawAria,
               authorText: author,
               dateText: date,
-              bodyText
+              bodyText,
+              isReply
             });
           }
         });
@@ -272,12 +365,14 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
           const authorEl = el.querySelector('a, strong');
           const textEl = el.querySelector('span[dir="auto"]');
           const dateEl = el.querySelector('abbr, a[href*="comment_id"]');
+          const isReply = el.closest('ul ul') !== null;
           if (authorEl && textEl) {
             results.push({
               rawAria: '',
               authorText: authorEl.textContent.trim(),
               dateText: dateEl ? dateEl.textContent.trim() : '',
-              bodyText: textEl.textContent.trim()
+              bodyText: textEl.textContent.trim(),
+              isReply
             });
           }
         });
@@ -291,7 +386,7 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
     let idx = 1;
 
     for (const raw of rawComments) {
-      let { author, date, text } = parseCommentNode(raw);
+      let { author, date, text, threadType } = parseCommentNode(raw);
 
       // If author or date is missing, parse from container aria-label
       if ((!author || author === 'Unknown' || !date || date === 'Unknown') && raw.rawAria) {
@@ -313,7 +408,8 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
           id: `cmt-${idx++}`,
           author: author || 'Unknown',
           date: normalizeFacebookDate(date),
-          text
+          text,
+          threadType: threadType || (raw.isReply ? 'Nested Reply' : 'Parent Comment')
         });
       }
     }

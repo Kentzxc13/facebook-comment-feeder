@@ -34,6 +34,24 @@ describe('parseCommentNode', () => {
     expect(parsed.text).toContain('This is the actual comment.');
     expect(parsed.text).not.toContain('Like · Reply');
   });
+
+  it('correctly identifies threadType as Nested Reply or Parent Comment', () => {
+    const parent = parseCommentNode({
+      authorText: 'Alice',
+      dateText: '1h',
+      bodyText: 'First parent comment',
+      isReply: false
+    });
+    expect(parent.threadType).toBe('Parent Comment');
+
+    const reply = parseCommentNode({
+      authorText: 'Bob',
+      dateText: '30m',
+      bodyText: 'Replying to Alice',
+      isReply: true
+    });
+    expect(reply.threadType).toBe('Nested Reply');
+  });
 });
 
 describe('parseAriaCommentLabel', () => {
