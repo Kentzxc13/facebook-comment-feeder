@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: facebook-comment-feeder-api
+    runtime: node
+    plan: free
+    buildCommand: npm install && npx playwright install --with-deps chromium
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: APIFY_API_TOKEN
+        sync: false
