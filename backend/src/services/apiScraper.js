@@ -28,13 +28,15 @@ export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress
     throw new Error(validation.error || 'Invalid Facebook URL provided.');
   }
 
-  const maxComments = options.maxComments || 150;
+  const maxComments = options.maxComments || 250;
   onProgress('Initiating Apify Cloud Scraper Actor...');
 
   const runUrl = `https://api.apify.com/v2/acts/apify~facebook-comments-scraper/runs?token=${encodeURIComponent(token)}`;
   const runPayload = {
     startUrls: [{ url }],
-    maxComments
+    resultsLimit: maxComments,
+    includeNestedComments: true,
+    viewOption: 'RANKED_UNFILTERED'
   };
 
   const startRes = await fetch(runUrl, {
@@ -93,16 +95,16 @@ export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress
     return [];
   }
 
-  onProgress(`Formatting ${items.length} comments from cloud dataset...`);
+  onProgress(`Formatting comments and nested replies from cloud dataset...`);
   const results = [];
   let idx = 1;
 
-  for (const item of items) {
-    const author = item.profileName || item.author || item.user?.name || item.commenter || 'Unknown';
+  const addComment = (item) => {
+    const author = item.profileName || item.author?.name || item.author || item.user?.name || item.commenter || 'Unknown';
     const rawDate = item.date || item.timestamp || item.createdTime || item.time || '';
     const text = item.text || item.comment || item.message || '';
 
-    if (!text && (!author || author === 'Unknown')) continue;
+    if (!text && (!author || author === 'Unknown')) return;
 
     results.push({
       id: `cmt-api-${idx++}`,
@@ -110,6 +112,15 @@ export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress
       date: normalizeFacebookDate(String(rawDate)),
       text: String(text).trim()
     });
+  };
+
+  for (const item of items) {
+    addComment(item);
+    if (Array.isArray(item.comments)) {
+      for (const nested of item.comments) {
+        addComment(nested);
+      }
+    }
   }
 
   onProgress(`Extraction complete! Received ${results.length} comments from cloud.`);
