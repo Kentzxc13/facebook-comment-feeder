@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"node --watch backend/src/server.js\" \"cd frontend && next dev -p 3000\"",
-    "build": "node scripts/build.js",
+    "build": "cd frontend && next build",
     "start": "node backend/src/server.js",
     "test": "vitest run"
   },
