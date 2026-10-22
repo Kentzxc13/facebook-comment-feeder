@@ -10,15 +10,26 @@ export default {
   theme: {
     extend: {
       colors: {
+        brand: {
+          50: '#fff5f2',
+          100: '#ffe8e2',
+          500: '#ff5733',
+          600: '#ff4d30',
+          700: '#e03d22',
+        },
+        fb: {
+          DEFAULT: '#1877F2',
+          subtle: '#E7F3FF',
+        },
         background: '#090d16',
         surface: '#111726',
         'surface-hover': '#1a2236',
         'surface-border': 'rgba(255, 255, 255, 0.08)',
         primary: {
-          DEFAULT: '#6366f1',
-          hover: '#4f46e5',
-          light: '#a5b4fc',
-          muted: 'rgba(99, 102, 241, 0.12)'
+          DEFAULT: '#ff5733',
+          hover: '#ff4d30',
+          light: '#ffe8e2',
+          muted: 'rgba(255, 87, 51, 0.12)'
         },
         success: {
           DEFAULT: '#10b981',

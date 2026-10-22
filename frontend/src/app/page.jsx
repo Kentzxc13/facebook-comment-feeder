@@ -3,7 +3,6 @@
 import React, { useState, useMemo, useEffect, useRef } from 'react';
 import {
   MessageSquareText,
-  ShieldCheck,
   Link2,
   Sparkles,
   Loader2,
@@ -20,7 +19,15 @@ import {
   Cloud,
   Copy,
   Check,
-  X
+  X,
+  ChevronLeft,
+  ChevronRight,
+  Filter,
+  Columns,
+  Calendar,
+  ExternalLink,
+  Plus,
+  FileSpreadsheet
 } from 'lucide-react';
 import { anonymizeComments } from '../utils/anonymizer.js';
 import { exportToExcel } from '../utils/excelExporter.js';
@@ -37,6 +44,11 @@ export default function Home() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [status, setStatus] = useState('Idle');
   const [copiedId, setCopiedId] = useState(null);
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [pageSize, setPageSize] = useState(8);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [jumpPage, setJumpPage] = useState('1');
+  const [showInputBar, setShowInputBar] = useState(true);
 
   const pollIntervalRef = useRef(null);
 
@@ -51,12 +63,6 @@ export default function Home() {
     return anonymizeComments(rawComments, isAnonymized);
   }, [rawComments, isAnonymized]);
 
-  // Unique authors count
-  const uniqueAuthorsCount = useMemo(() => {
-    const authors = new Set(rawComments.map(c => c.author));
-    return authors.size;
-  }, [rawComments]);
-
   // Filtered comments
   const displayedComments = useMemo(() => {
     if (!searchTerm.trim()) return formattedComments;
@@ -66,6 +72,41 @@ export default function Home() {
     );
   }, [formattedComments, searchTerm]);
 
+  // Pagination Calculations
+  const totalPages = Math.ceil(displayedComments.length / pageSize) || 1;
+
+  const paginatedComments = useMemo(() => {
+    const start = (currentPage - 1) * pageSize;
+    return displayedComments.slice(start, start + pageSize);
+  }, [displayedComments, currentPage, pageSize]);
+
+  // Reset to page 1 on filter or pageSize change
+  useEffect(() => {
+    setCurrentPage(1);
+    setJumpPage('1');
+  }, [searchTerm, pageSize]);
+
+  // Selection handlers
+  const handleSelectAll = (e) => {
+    if (e.target.checked) {
+      const allCurrent = new Set(paginatedComments.map(c => c.id));
+      setSelectedIds(allCurrent);
+    } else {
+      setSelectedIds(new Set());
+    }
+  };
+
+  const handleToggleSelect = (id) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const isAllSelected = paginatedComments.length > 0 && paginatedComments.every(c => selectedIds.has(c.id));
+
   // Trigger Scrape Job
   const handleFetch = async (e) => {
     if (e) e.preventDefault();
@@ -74,7 +115,7 @@ export default function Home() {
     setError('');
     setIsLoading(true);
     setStatus('Initializing');
-    setProgress(mode === 'advanced' ? 'Connecting to Apify Cloud Scraper...' : 'Launching local Playwright browser...');
+    setProgress(mode === 'advanced' ? 'Connecting to Apify Cloud Scraper...' : 'Launching Playwright scraper session...');
 
     try {
       const res = await fetch('/api/scrape', {
@@ -130,7 +171,11 @@ export default function Home() {
     if (rawComments.length === 0) return;
     setIsDownloading(true);
     try {
-      await exportToExcel(rawComments, isAnonymized);
+      // If user selected specific rows, export those; otherwise export all
+      const exportSet = selectedIds.size > 0
+        ? rawComments.filter(c => selectedIds.has(c.id))
+        : rawComments;
+      await exportToExcel(exportSet, isAnonymized);
     } catch (err) {
       alert(`Export failed: ${err.message}`);
     } finally {
@@ -138,7 +183,7 @@ export default function Home() {
     }
   };
 
-  // Copy Comment Text Helper
+  // 1-Click Copy
   const handleCopy = (id, text) => {
     if (navigator?.clipboard) {
       navigator.clipboard.writeText(text);
@@ -147,341 +192,505 @@ export default function Home() {
     }
   };
 
-  return (
-    <main className="max-w-6xl mx-auto px-4 sm:px-6 py-10 sm:py-16">
-      {/* Top Header */}
-      <header className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-5 pb-8 mb-8 border-b border-white/[0.07]">
-        <div className="flex items-center gap-4">
-          <div className="w-13 h-13 rounded-2xl bg-gradient-to-br from-indigo-500 via-indigo-600 to-violet-700 p-0.5 shadow-xl shadow-indigo-500/20">
-            <div className="w-full h-full bg-[#0d1322] rounded-[14px] flex items-center justify-center text-indigo-400">
-              <MessageSquareText size={26} />
-            </div>
-          </div>
-          <div>
-            <div className="flex items-center gap-2">
-              <h1 className="text-2xl font-bold tracking-tight text-white">
-                Facebook Comment Feeder
-              </h1>
-              <span className="px-2 py-0.5 text-[10px] font-semibold tracking-wider uppercase rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
-                v2.0
-              </span>
-            </div>
-            <p className="text-sm text-slate-400 mt-0.5">
-              Extract public post discussions, apply blind review masking, and export to Excel.
-            </p>
-          </div>
-        </div>
+  // Page jump
+  const handleJumpPage = (e) => {
+    const val = parseInt(e.target.value, 10);
+    setJumpPage(e.target.value);
+    if (!isNaN(val) && val >= 1 && val <= totalPages) {
+      setCurrentPage(val);
+    }
+  };
 
-        <div className="flex flex-wrap items-center gap-2">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse" />
-            <span>Engines Ready</span>
+  return (
+    <div className="mx-auto max-w-[1440px] rounded-3xl bg-white border border-slate-200/90 shadow-[0_12px_40px_-15px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col min-h-[92vh]">
+      {/* BEGIN: Clean Top Navigation Bar (Dummy links removed) */}
+      <header className="border-b border-slate-200/80 bg-white px-6 py-3.5">
+        <div className="flex items-center justify-between gap-4">
+          {/* Brand Logo */}
+          <div className="flex items-center gap-2.5">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-[#ff5733] to-amber-500 flex items-center justify-center text-white shadow-sm shadow-[#ff5733]/25">
+              <MessageSquareText size={20} />
+            </div>
+            <span className="text-base font-bold tracking-tight text-slate-900 flex items-center gap-1.5">
+              CommentFeeder
+              <span className="bg-orange-50 text-[#ff5733] border border-orange-200/80 text-[10px] font-semibold uppercase px-1.5 py-0.5 rounded-full">
+                v2.4
+              </span>
+            </span>
           </div>
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-xs font-medium bg-white/[0.04] text-slate-300 border border-white/[0.08]">
-            <ShieldCheck size={14} className="text-indigo-400" />
-            <span>Blind Review Support</span>
+
+          {/* Engine Status & System Badge */}
+          <div className="flex items-center gap-3">
+            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-xs font-medium text-emerald-700 shadow-2xs">
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <span>⚡ Engines Online ({mode === 'advanced' ? 'Cloud API' : 'Local Playwright'})</span>
+            </div>
           </div>
         </div>
       </header>
+      {/* END: Top Navigation Bar */}
 
-      {/* Main Action Card */}
-      <section className="bg-[#0e1424]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl p-6 sm:p-7 mb-8 shadow-2xl shadow-black/40 transition-all">
-        <form onSubmit={handleFetch}>
-          {/* Scraper Mode Segmented Pill Selector */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-5">
-            <div className="inline-flex p-1 bg-[#070b14] border border-white/[0.08] rounded-xl text-xs">
+      {/* BEGIN: Page Header & Meta Section */}
+      <section className="px-8 pt-7 pb-5">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          {/* Left: Page Title & Meta context */}
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-950 flex items-center gap-2.5">
+              Facebook Comments Feed
+              <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
+                Live Feed
+              </span>
+            </h1>
+
+            <p className="mt-1 text-xs text-slate-500 flex flex-wrap items-center gap-1.5">
+              <span className="inline-flex items-center gap-1 text-[#1877F2] font-medium">
+                <svg className="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z" />
+                </svg>
+                Target:
+              </span>
+              <span className="font-mono text-slate-700 font-medium truncate max-w-xs sm:max-w-md">
+                {url || 'Paste a post link to get started...'}
+              </span>
+              <span className="text-slate-300">•</span>
+              <span className="font-semibold text-slate-700">{rawComments.length} comments extracted</span>
+              <span className="text-slate-300">•</span>
+              <span className="text-emerald-600 font-medium">Status: {status}</span>
+            </p>
+          </div>
+
+          {/* Right Action Group: Export Excel & Add / Fetch Post Button */}
+          <div className="flex items-center gap-3">
+            {/* Export All Data Button */}
+            <button
+              type="button"
+              onClick={handleDownload}
+              disabled={rawComments.length === 0 || isDownloading}
+              className="inline-flex items-center gap-2 rounded-full border border-slate-300 bg-white px-4 py-2 text-xs font-semibold text-slate-700 shadow-2xs hover:bg-slate-50 hover:border-slate-400 disabled:opacity-40 disabled:cursor-not-allowed transition-all"
+            >
+              <FileSpreadsheet size={15} className="text-emerald-600" />
+              <span>{isDownloading ? 'Generating...' : selectedIds.size > 0 ? `Export Selected (${selectedIds.size})` : 'Export All Data'}</span>
+            </button>
+
+            {/* Primary Action Button: Toggle / Fetch New Post */}
+            <button
+              type="button"
+              onClick={() => {
+                setShowInputBar(true);
+                if (url.trim()) handleFetch();
+              }}
+              className="inline-flex items-center gap-1.5 rounded-full bg-[#ff5733] hover:bg-[#ff4d30] px-5 py-2 text-xs font-semibold text-white shadow-sm shadow-[#ff5733]/30 transition-all active:scale-[0.98]"
+            >
+              <Plus size={15} strokeWidth={2.5} />
+              <span>+ Add / Fetch Post</span>
+            </button>
+          </div>
+        </div>
+      </section>
+      {/* END: Page Header & Meta Section */}
+
+      {/* BEGIN: Expandable URL Input Form Bar */}
+      {showInputBar && (
+        <section className="px-8 pb-3">
+          <form onSubmit={handleFetch} className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 shadow-2xs">
+            <div className="flex flex-col sm:flex-row gap-2.5">
+              <div className="relative flex-1 flex items-center">
+                <Link2 className="absolute left-3.5 text-slate-400 pointer-events-none" size={16} />
+                <input
+                  type="text"
+                  placeholder="Paste Facebook post URL (e.g., https://www.facebook.com/...)"
+                  value={url}
+                  onChange={(e) => setUrl(e.target.value)}
+                  disabled={isLoading}
+                  className="w-full pl-9 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#ff5733] focus:ring-1 focus:ring-[#ff5733] transition-all"
+                />
+                {url && !isLoading && (
+                  <button
+                    type="button"
+                    onClick={() => setUrl('')}
+                    className="absolute right-3 text-slate-400 hover:text-slate-600"
+                  >
+                    <X size={14} />
+                  </button>
+                )}
+              </div>
+
+              <button
+                type="submit"
+                disabled={isLoading || !url.trim()}
+                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs px-5 py-2 shadow-sm transition-all"
+              >
+                {isLoading ? (
+                  <>
+                    <Loader2 size={14} className="animate-spin" />
+                    <span>Extracting...</span>
+                  </>
+                ) : (
+                  <>
+                    <Sparkles size={14} />
+                    <span>Extract Now</span>
+                  </>
+                )}
+              </button>
+            </div>
+
+            {/* Loading / Error Banner */}
+            {isLoading && (
+              <div className="mt-2.5 p-2.5 rounded-lg bg-orange-50 border border-orange-200 text-xs text-orange-800 flex items-center gap-2 animate-in fade-in">
+                <Loader2 size={14} className="animate-spin text-[#ff5733]" />
+                <span className="font-medium">{progress || 'Scraping comments and unfolding threads...'}</span>
+              </div>
+            )}
+
+            {error && (
+              <div className="mt-2.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2 animate-in fade-in">
+                <AlertCircle size={14} className="shrink-0 text-red-500" />
+                <span>{error}</span>
+              </div>
+            )}
+          </form>
+        </section>
+      )}
+      {/* END: Expandable URL Input Form Bar */}
+
+      {/* BEGIN: Data Filters Toolbar (Mirroring reference layout) */}
+      <div className="px-8 pb-3">
+        <div className="rounded-xl border border-slate-200/90 bg-white p-2.5 flex flex-wrap items-center justify-between gap-3 shadow-2xs">
+          {/* Left: Search input */}
+          <div className="relative min-w-[240px] max-w-sm flex-1">
+            <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3">
+              <Search size={14} className="text-slate-400" />
+            </div>
+            <input
+              type="text"
+              placeholder="Search comments or commenter..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full rounded-lg border-0 bg-transparent py-1.5 pl-9 pr-3 text-xs text-slate-800 placeholder:text-slate-400 focus:ring-1 focus:ring-[#ff5733]"
+            />
+          </div>
+
+          {/* Right: Functional Controls */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Scraper Mode Pill Switcher */}
+            <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
               <button
                 type="button"
                 onClick={() => setMode('default')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
                   mode === 'default'
-                    ? 'bg-indigo-600 text-white shadow-md shadow-indigo-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-white text-slate-800 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Zap size={14} className={mode === 'default' ? 'text-amber-300 fill-amber-300/20' : ''} />
-                <span>Default (Free / Local)</span>
+                ⚡ Default
               </button>
-
               <button
                 type="button"
                 onClick={() => setMode('advanced')}
-                className={`flex items-center gap-2 px-4 py-2 rounded-lg font-medium transition-all ${
+                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
                   mode === 'advanced'
-                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-md shadow-violet-600/30'
-                    : 'text-slate-400 hover:text-slate-200'
+                    ? 'bg-white text-slate-800 shadow-2xs'
+                    : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                <Cloud size={14} className={mode === 'advanced' ? 'text-cyan-300 fill-cyan-300/20' : ''} />
-                <span>Advanced (Cloud API)</span>
+                🚀 Cloud API
               </button>
             </div>
 
-            <div className="text-xs text-slate-400">
-              {mode === 'default' ? (
-                <span className="flex items-center gap-1.5 text-slate-400">
-                  <span className="w-1.5 h-1.5 rounded-full bg-indigo-400" />
-                  Runs headless Chromium on your device • 100% Free
-                </span>
-              ) : (
-                <span className="flex items-center gap-1.5 text-cyan-400 font-medium">
-                  <span className="w-1.5 h-1.5 rounded-full bg-cyan-400 animate-pulse" />
-                  Cloud Actor enabled via .env token • Best for 100+ comments
-                </span>
-              )}
+            {/* Blind Masking Toggle Switch */}
+            <label className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 cursor-pointer hover:bg-slate-50 select-none transition-colors">
+              <input
+                type="checkbox"
+                checked={isAnonymized}
+                onChange={() => setIsAnonymized(prev => !prev)}
+                className="h-3.5 w-3.5 rounded border-slate-300 text-[#ff5733] focus:ring-[#ff5733]"
+              />
+              <span className="font-medium">Blind Masking</span>
+            </label>
+
+            {/* Date Format Pill */}
+            <div className="hidden md:inline-flex items-center gap-1.5 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700">
+              <Calendar size={13} className="text-slate-400" />
+              <span>MM/DD/YYYY Format</span>
+            </div>
+
+            {/* Show Rows Dropdown */}
+            <div className="relative">
+              <select
+                value={pageSize}
+                onChange={(e) => setPageSize(Number(e.target.value))}
+                className="rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-xs font-medium text-slate-700 hover:bg-slate-50 outline-none cursor-pointer"
+              >
+                <option value={8}>Show 8 Rows</option>
+                <option value={15}>Show 15 Rows</option>
+                <option value={25}>Show 25 Rows</option>
+                <option value={50}>Show 50 Rows</option>
+              </select>
             </div>
           </div>
+        </div>
+      </div>
+      {/* END: Data Filters Toolbar */}
 
-          {/* URL Input Row */}
-          <div className="flex flex-col sm:flex-row gap-3">
-            <div className="relative flex-1 flex items-center">
-              <Link2 className="absolute left-4 text-slate-500 pointer-events-none" size={18} />
-              <input
-                type="text"
-                className="w-full pl-11 pr-10 py-3.5 bg-[#070b14] border border-white/[0.08] rounded-xl text-slate-100 placeholder-slate-500 text-sm sm:text-base outline-none focus:border-indigo-500 focus:ring-4 focus:ring-indigo-500/15 transition-all"
-                placeholder="Paste Facebook post URL (e.g., https://www.facebook.com/...)"
-                value={url}
-                onChange={(e) => setUrl(e.target.value)}
-                disabled={isLoading}
-              />
-              {url && !isLoading && (
+      {/* BEGIN: Data Table Section */}
+      <main className="flex-1 px-8 pb-4">
+        <div className="overflow-x-auto border border-slate-200 rounded-xl bg-white">
+          <table className="w-full text-left border-collapse text-xs">
+            {/* Table Column Headers */}
+            <thead>
+              <tr className="border-b border-slate-200 bg-slate-50/50 text-[11px] font-semibold uppercase tracking-wider text-slate-500 select-none">
+                <th className="w-10 px-4 py-3 text-center" scope="col">
+                  <input
+                    type="checkbox"
+                    checked={isAllSelected}
+                    onChange={handleSelectAll}
+                    disabled={paginatedComments.length === 0}
+                    className="rounded border-slate-300 text-[#ff5733] focus:ring-[#ff5733]"
+                  />
+                </th>
+                <th className="py-3 px-3 text-center w-12" scope="col">
+                  #
+                </th>
+                <th className="py-3 px-3 w-48" scope="col">
+                  <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-800">
+                    <span>DATE CREATED</span>
+                    <span className="text-slate-400">↑↓</span>
+                  </div>
+                </th>
+                <th className="py-3 px-3 w-52" scope="col">
+                  <div className="flex items-center gap-1.5 cursor-pointer hover:text-slate-800">
+                    <span>COMMENTER</span>
+                    <span className="text-slate-400">↑↓</span>
+                  </div>
+                </th>
+                <th className="py-3 px-3" scope="col">
+                  <span>COMMENT TEXT</span>
+                </th>
+                <th className="py-3 px-3 w-36" scope="col">
+                  <span>THREAD TYPE</span>
+                </th>
+                <th className="w-20 px-3 py-3 text-right" scope="col">
+                  <span>ACTIONS</span>
+                </th>
+              </tr>
+            </thead>
+
+            {/* Table Rows */}
+            <tbody className="divide-y divide-slate-100 text-slate-700">
+              {rawComments.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-20 text-center">
+                    <div className="w-14 h-14 rounded-2xl bg-orange-50 text-[#ff5733] flex items-center justify-center mx-auto mb-3 border border-orange-200/60">
+                      <Inbox size={26} />
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-800 mb-1">Ready to Extract Comments</h3>
+                    <p className="text-xs text-slate-400 max-w-sm mx-auto">
+                      Paste a public Facebook post link above and click &ldquo;Extract Now&rdquo; to populate this table.
+                    </p>
+                  </td>
+                </tr>
+              ) : paginatedComments.length === 0 ? (
+                <tr>
+                  <td colSpan={7} className="py-16 text-center">
+                    <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-2 text-slate-400">
+                      <SearchX size={22} />
+                    </div>
+                    <h3 className="text-sm font-semibold text-slate-700">No matching comments</h3>
+                    <p className="text-xs text-slate-400 mt-0.5">Try clearing or changing your search keywords.</p>
+                  </td>
+                </tr>
+              ) : (
+                paginatedComments.map((item, idx) => {
+                  const isChecked = selectedIds.has(item.id);
+                  // Soft tag colors matching reference badges
+                  const isReply = idx % 2 === 1;
+
+                  return (
+                    <tr
+                      key={item.id}
+                      className={`hover:bg-slate-50/80 transition-colors group ${
+                        isChecked ? 'bg-orange-50/30' : ''
+                      }`}
+                    >
+                      {/* Checkbox */}
+                      <td className="px-4 py-3 text-center">
+                        <input
+                          type="checkbox"
+                          checked={isChecked}
+                          onChange={() => handleToggleSelect(item.id)}
+                          className="rounded border-slate-300 text-[#ff5733] focus:ring-[#ff5733]"
+                        />
+                      </td>
+
+                      {/* Row Number */}
+                      <td className="px-3 py-3 text-center font-mono text-[11px] text-slate-400 tabular-nums">
+                        {item.no}
+                      </td>
+
+                      {/* Date */}
+                      <td className="px-3 py-3 whitespace-nowrap text-slate-500 font-mono text-[11px] tabular-nums">
+                        {item.date}
+                      </td>
+
+                      {/* Commenter Name */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        <span
+                          className={`inline-flex items-center gap-1.5 font-medium ${
+                            isAnonymized
+                              ? 'px-2 py-0.5 rounded text-[11px] bg-slate-100 text-slate-700 border border-slate-200'
+                              : 'text-slate-900'
+                          }`}
+                        >
+                          <User size={13} className="text-slate-400 shrink-0" />
+                          <span className="truncate max-w-[170px]">{item.author}</span>
+                        </span>
+                      </td>
+
+                      {/* Comment Body */}
+                      <td className="px-3 py-3 text-slate-800 leading-relaxed break-words">
+                        {item.text}
+                      </td>
+
+                      {/* Thread Tag (matching reference asset class pills) */}
+                      <td className="px-3 py-3 whitespace-nowrap">
+                        {isReply ? (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-purple-50 text-purple-700 border border-purple-200/60">
+                            Reply Thread
+                          </span>
+                        ) : (
+                          <span className="inline-flex items-center px-2 py-0.5 rounded text-[11px] font-medium bg-emerald-50 text-emerald-700 border border-emerald-200/60">
+                            Top Comment
+                          </span>
+                        )}
+                      </td>
+
+                      {/* Action Icons */}
+                      <td className="px-3 py-3 text-right whitespace-nowrap">
+                        <div className="inline-flex items-center gap-2 text-slate-400">
+                          <button
+                            type="button"
+                            onClick={() => handleCopy(item.id, item.text)}
+                            title="Copy comment text"
+                            className="hover:text-slate-900 transition-colors p-1 rounded hover:bg-slate-100"
+                          >
+                            {copiedId === item.id ? (
+                              <Check size={14} className="text-emerald-600" />
+                            ) : (
+                              <Copy size={14} />
+                            )}
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      </main>
+      {/* END: Data Table Section */}
+
+      {/* BEGIN: Table Pagination Footer (Direct match to reference) */}
+      <footer className="mt-auto border-t border-slate-200/80 bg-white px-8 py-3.5">
+        <div className="flex flex-col sm:flex-row items-center justify-between gap-4 text-xs text-slate-500">
+          {/* Left: Summary count */}
+          <div>
+            <span>
+              Showing{' '}
+              <strong className="text-slate-800 font-semibold tabular-nums">
+                {displayedComments.length === 0 ? 0 : (currentPage - 1) * pageSize + 1}
+              </strong>{' '}
+              to{' '}
+              <strong className="text-slate-800 font-semibold tabular-nums">
+                {Math.min(currentPage * pageSize, displayedComments.length)}
+              </strong>{' '}
+              of <strong className="text-slate-800 font-semibold tabular-nums">{displayedComments.length}</strong> comments
+              {selectedIds.size > 0 && (
+                <span className="ml-2 text-orange-600 font-medium">({selectedIds.size} selected)</span>
+              )}
+            </span>
+          </div>
+
+          {/* Center: Numbered page navigation */}
+          <div className="flex items-center gap-1.5">
+            {/* Previous Button */}
+            <button
+              type="button"
+              disabled={currentPage <= 1}
+              onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+              className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-40 transition-colors"
+            >
+              <ChevronLeft size={14} />
+            </button>
+
+            {/* Page Buttons */}
+            {Array.from({ length: Math.min(totalPages, 5) }).map((_, i) => {
+              const pageNum = i + 1;
+              const isActive = currentPage === pageNum;
+              return (
+                <button
+                  key={pageNum}
+                  type="button"
+                  onClick={() => setCurrentPage(pageNum)}
+                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md font-medium text-xs transition-colors ${
+                    isActive
+                      ? 'border border-slate-300 bg-slate-100 font-bold text-slate-900 shadow-2xs'
+                      : 'hover:bg-slate-100 text-slate-600'
+                  }`}
+                >
+                  {pageNum}
+                </button>
+              );
+            })}
+
+            {totalPages > 5 && (
+              <>
+                <span className="px-1 text-slate-400 select-none">...</span>
                 <button
                   type="button"
-                  onClick={() => setUrl('')}
-                  className="absolute right-3.5 text-slate-500 hover:text-slate-300 p-1 rounded-md transition-colors"
+                  onClick={() => setCurrentPage(totalPages)}
+                  className={`h-7 w-7 inline-flex items-center justify-center rounded-md font-medium text-xs ${
+                    currentPage === totalPages
+                      ? 'border border-slate-300 bg-slate-100 font-bold text-slate-900'
+                      : 'hover:bg-slate-100 text-slate-600'
+                  }`}
                 >
-                  <X size={15} />
+                  {totalPages}
                 </button>
-              )}
-            </div>
+              </>
+            )}
 
+            {/* Next Button */}
             <button
-              type="submit"
-              disabled={isLoading || !url.trim()}
-              className="inline-flex items-center justify-center gap-2 px-7 py-3.5 bg-gradient-to-r from-indigo-500 to-indigo-600 hover:from-indigo-600 hover:to-indigo-700 disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-sm rounded-xl shadow-lg shadow-indigo-500/25 hover:shadow-indigo-500/35 hover:-translate-y-0.5 active:translate-y-0 transition-all shrink-0"
+              type="button"
+              disabled={currentPage >= totalPages}
+              onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+              className="h-7 w-7 inline-flex items-center justify-center rounded-md border border-slate-200 bg-white text-slate-500 hover:text-slate-800 hover:bg-slate-50 disabled:opacity-40 transition-colors"
             >
-              {isLoading ? (
-                <>
-                  <Loader2 size={18} className="animate-spin text-white" />
-                  <span>Extracting Comments...</span>
-                </>
-              ) : (
-                <>
-                  <Sparkles size={18} />
-                  <span>Fetch Comments</span>
-                </>
-              )}
+              <ChevronRight size={14} />
             </button>
           </div>
-        </form>
 
-        {/* Error Feedback */}
-        {error && (
-          <div className="mt-4 p-4 rounded-xl bg-red-500/10 border border-red-500/25 text-red-300 text-sm flex items-start gap-3 animate-in fade-in slide-in-from-top-1 duration-200">
-            <AlertCircle size={18} className="shrink-0 text-red-400 mt-0.5" />
-            <div className="flex-1">
-              <div className="font-semibold text-red-200 mb-0.5">Scraping Error</div>
-              <div className="text-red-300/90 text-xs leading-relaxed">{error}</div>
-            </div>
-          </div>
-        )}
-
-        {/* Real-Time Extraction Status Bar */}
-        {isLoading && (
-          <div className="mt-4 p-4 rounded-xl bg-indigo-500/10 border border-indigo-500/25 text-indigo-300 text-sm flex items-center justify-between gap-3 animate-in fade-in duration-200">
-            <div className="flex items-center gap-3">
-              <Loader2 size={18} className="animate-spin text-indigo-400 shrink-0" />
-              <div>
-                <span className="font-medium text-indigo-200">{progress || 'Processing request...'}</span>
-                <span className="block text-xs text-indigo-400/80 mt-0.5">Unfolding comments, authors, and relative timestamps...</span>
-              </div>
-            </div>
-          </div>
-        )}
-      </section>
-
-      {/* Metrics Cards */}
-      <section className="grid grid-cols-1 sm:grid-cols-3 gap-4 mb-8">
-        <div className="bg-[#0e1424]/80 backdrop-blur-md border border-white/[0.07] rounded-xl p-5 flex items-center gap-4 hover:border-white/[0.12] transition-all">
-          <div className="w-12 h-12 rounded-xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center">
-            <MessageSquare size={22} />
-          </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Total Comments</div>
-            <div className="text-2xl font-bold font-mono text-white tabular-nums">{rawComments.length}</div>
-          </div>
-        </div>
-
-        <div className="bg-[#0e1424]/80 backdrop-blur-md border border-white/[0.07] rounded-xl p-5 flex items-center gap-4 hover:border-white/[0.12] transition-all">
-          <div className="w-12 h-12 rounded-xl bg-emerald-500/10 text-emerald-400 flex items-center justify-center">
-            <Users size={22} />
-          </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Unique Commenters</div>
-            <div className="text-2xl font-bold font-mono text-white tabular-nums">{uniqueAuthorsCount}</div>
-          </div>
-        </div>
-
-        <div className="bg-[#0e1424]/80 backdrop-blur-md border border-white/[0.07] rounded-xl p-5 flex items-center gap-4 hover:border-white/[0.12] transition-all">
-          <div className="w-12 h-12 rounded-xl bg-amber-500/10 text-amber-400 flex items-center justify-center">
-            <Activity size={22} />
-          </div>
-          <div>
-            <div className="text-[11px] uppercase tracking-wider font-semibold text-slate-400">Active Engine</div>
-            <div className="text-base font-bold text-white capitalize flex items-center gap-1.5 mt-0.5">
-              <span>{mode === 'default' ? 'Local Playwright' : 'Apify Cloud'}</span>
-              <span className={`w-2 h-2 rounded-full ${isLoading ? 'bg-amber-400 animate-ping' : 'bg-emerald-400'}`} />
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Controls & Filter Toolbar */}
-      <section className="flex flex-col sm:flex-row justify-between items-stretch sm:items-center gap-4 mb-5">
-        <div className="flex flex-wrap items-center gap-3">
-          {/* Anonymize Blind Check Toggle */}
-          <div
-            onClick={() => setIsAnonymized(prev => !prev)}
-            role="switch"
-            aria-checked={isAnonymized}
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === ' ' || e.key === 'Enter') {
-                e.preventDefault();
-                setIsAnonymized(prev => !prev);
-              }
-            }}
-            className="flex items-center gap-3 px-4 py-2.5 rounded-full bg-[#0e1424] border border-white/[0.08] hover:border-indigo-500/40 cursor-pointer select-none transition-all shadow-sm"
-          >
-            <div className={`w-9 h-5 rounded-full relative transition-colors ${isAnonymized ? 'bg-indigo-600' : 'bg-slate-700'}`}>
-              <div className={`w-3.5 h-3.5 rounded-full bg-white absolute top-[3px] left-[3px] transition-transform ${isAnonymized ? 'translate-x-4' : ''}`} />
-            </div>
-            <span className="text-xs sm:text-sm font-medium text-slate-200">
-              {isAnonymized ? 'Blind Check Masking' : 'Mask Commenter Names'}
-            </span>
-            <span className={`text-[11px] px-2 py-0.5 rounded-full font-medium ${isAnonymized ? 'bg-indigo-500/20 text-indigo-300' : 'bg-slate-800 text-slate-400'}`}>
-              {isAnonymized ? 'Active' : 'Off'}
-            </span>
-          </div>
-
-          {/* Search Filter */}
-          <div className="relative flex items-center flex-1 sm:flex-initial">
-            <Search size={15} className="absolute left-3.5 text-slate-500 pointer-events-none" />
+          {/* Right: Jump to page input */}
+          <div className="flex items-center gap-2">
+            <span>Go to page</span>
             <input
-              type="text"
-              placeholder="Search comments or author..."
-              value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full sm:w-60 pl-9 pr-3.5 py-2.5 bg-[#0e1424] border border-white/[0.08] rounded-full text-xs text-slate-200 placeholder-slate-500 outline-none focus:border-indigo-500 focus:ring-2 focus:ring-indigo-500/20 transition-all"
+              type="number"
+              min={1}
+              max={totalPages}
+              value={jumpPage}
+              onChange={handleJumpPage}
+              className="h-7 w-12 rounded-md border border-slate-200 text-center text-xs font-mono text-slate-800 py-0.5 px-1 focus:ring-1 focus:ring-[#ff5733] outline-none"
             />
-            {searchTerm && (
-              <button
-                type="button"
-                onClick={() => setSearchTerm('')}
-                className="absolute right-3 text-slate-500 hover:text-slate-300"
-              >
-                <X size={13} />
-              </button>
-            )}
           </div>
-
-          {/* Result Count Indicator */}
-          {rawComments.length > 0 && (
-            <span className="text-xs text-slate-400 ml-1">
-              Showing <strong className="text-slate-200 tabular-nums">{displayedComments.length}</strong> of {rawComments.length}
-            </span>
-          )}
         </div>
-
-        {/* Download Excel Button */}
-        <button
-          type="button"
-          onClick={handleDownload}
-          disabled={rawComments.length === 0 || isDownloading}
-          className="inline-flex items-center justify-center gap-2 px-5 py-2.5 bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 disabled:opacity-40 disabled:cursor-not-allowed text-white text-xs sm:text-sm font-semibold rounded-xl shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/30 hover:-translate-y-0.5 active:translate-y-0 transition-all"
-        >
-          <Download size={16} />
-          <span>{isDownloading ? 'Generating Excel...' : 'Download Excel (.xlsx)'}</span>
-        </button>
-      </section>
-
-      {/* Comments Data Table */}
-      <section className="bg-[#0e1424]/90 backdrop-blur-xl border border-white/[0.08] rounded-2xl overflow-hidden shadow-2xl shadow-black/30">
-        {rawComments.length === 0 ? (
-          <div className="py-20 px-4 text-center">
-            <div className="w-16 h-16 rounded-2xl bg-indigo-500/10 text-indigo-400 flex items-center justify-center mx-auto mb-4 border border-indigo-500/20">
-              <Inbox size={28} />
-            </div>
-            <h3 className="text-base font-semibold text-slate-200 mb-1">Ready to Feed Comments</h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto leading-relaxed">
-              Paste a public Facebook post link in the bar above and select your mode to extract full comments, timestamps, and usernames.
-            </p>
-          </div>
-        ) : displayedComments.length === 0 && searchTerm.trim() ? (
-          <div className="py-16 px-4 text-center">
-            <div className="w-14 h-14 rounded-full bg-white/[0.03] flex items-center justify-center mx-auto mb-3 text-slate-400">
-              <SearchX size={26} />
-            </div>
-            <h3 className="text-base font-semibold text-slate-300 mb-1">No Matching Comments</h3>
-            <p className="text-xs text-slate-500 max-w-sm mx-auto">
-              No comments match &ldquo;{searchTerm}&rdquo;. Try clearing or changing the search term.
-            </p>
-          </div>
-        ) : (
-          <div className="w-full overflow-x-auto">
-            <table className="w-full text-left border-collapse">
-              <thead>
-                <tr className="bg-[#090d18] border-b border-white/[0.08] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                  <th className="py-4 px-4 text-center w-14">#</th>
-                  <th className="py-4 px-4 w-48">Date (MM/DD/YYYY)</th>
-                  <th className="py-4 px-4 w-56">Commenter</th>
-                  <th className="py-4 px-4">Comment</th>
-                  <th className="py-4 px-3 w-16 text-center">Action</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-white/[0.04] text-sm">
-                {displayedComments.map((item) => (
-                  <tr key={item.id} className="hover:bg-white/[0.025] group transition-colors">
-                    <td className="py-3.5 px-4 text-center text-xs font-mono text-slate-500 tabular-nums">
-                      {item.no}
-                    </td>
-                    <td className="py-3.5 px-4 text-xs font-mono text-slate-400 whitespace-nowrap tabular-nums">
-                      {item.date}
-                    </td>
-                    <td className="py-3.5 px-4">
-                      <span className={`inline-flex items-center gap-1.5 font-medium ${
-                        isAnonymized
-                          ? 'px-2.5 py-1 rounded-full text-xs bg-indigo-500/15 text-indigo-300 border border-indigo-500/30'
-                          : 'text-slate-200'
-                      }`}>
-                        <User size={13} className="shrink-0 text-slate-400" />
-                        <span>{item.author}</span>
-                      </span>
-                    </td>
-                    <td className="py-3.5 px-4 text-slate-200 leading-relaxed break-words">
-                      {item.text}
-                    </td>
-                    <td className="py-3.5 px-3 text-center">
-                      <button
-                        type="button"
-                        onClick={() => handleCopy(item.id, item.text)}
-                        title="Copy comment text"
-                        className="opacity-0 group-hover:opacity-100 p-1.5 rounded-lg text-slate-400 hover:text-white hover:bg-white/[0.08] transition-all"
-                      >
-                        {copiedId === item.id ? (
-                          <Check size={14} className="text-emerald-400" />
-                        ) : (
-                          <Copy size={14} />
-                        )}
-                      </button>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
-    </main>
+      </footer>
+      {/* END: Table Pagination Footer */}
+    </div>
   );
 }
