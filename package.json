@@ -1,5 +1,5 @@
 {
-  "name": "comment-feeder",
+  "name": "facebook-comment-feeder",
   "version": "1.0.0",
   "private": true,
   "type": "module",
