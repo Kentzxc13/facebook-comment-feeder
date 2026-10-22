@@ -2,6 +2,50 @@ import { chromium } from 'playwright';
 import { isValidFacebookUrl } from './utils/urlValidator.js';
 
 /**
+ * Parses Facebook's container aria-label (e.g. "Comment by Jane Doe 2 hours ago")
+ * into structured author and date fields.
+ * Supports both English and multilingual (e.g. Filipino/Tagalog) patterns.
+ * @param {string} ariaLabel 
+ * @returns {{ author: string, date: string }}
+ */
+export function parseAriaCommentLabel(ariaLabel) {
+  if (!ariaLabel || typeof ariaLabel !== 'string') {
+    return { author: '', date: '' };
+  }
+
+  const clean = ariaLabel.trim();
+
+  // English: "Comment by [Author] [Date / Relative Time]"
+  const matchEn = clean.match(/Comment by\s+(.+?)\s+([0-9]+\s+[a-zA-Z]+(?:\s+ago)?|[0-9]+[smhdwy]|yesterday|just now|about\s+[0-9]+.+)$/i);
+  if (matchEn) {
+    return {
+      author: matchEn[1].trim(),
+      date: matchEn[2].trim()
+    };
+  }
+
+  // Filipino / Tagalog: "Komento ni [Author] [Date / Relative Time]"
+  const matchTl = clean.match(/Komento ni\s+(.+?)\s+([0-9]+\s+.+?ang nakalipas|[0-9]+[smhdwy]|kahapon|ngayon lang)$/i);
+  if (matchTl) {
+    return {
+      author: matchTl[1].trim(),
+      date: matchTl[2].trim()
+    };
+  }
+
+  // Fallback: If starts with "Comment by", take the rest
+  const prefixMatch = clean.match(/^(?:Comment by|Komento ni)\s+(.+)$/i);
+  if (prefixMatch) {
+    return {
+      author: prefixMatch[1].trim(),
+      date: ''
+    };
+  }
+
+  return { author: '', date: '' };
+}
+
+/**
  * Parses raw text chunks into clean comment fields.
  * Strips common Facebook UI artifacts like "Like · Reply · Share".
  * @param {{ authorText?: string, dateText?: string, bodyText?: string }} raw 
@@ -55,19 +99,20 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
 
     const context = await browser.newContext({
       userAgent: 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36',
-      viewport: { width: 1280, height: 800 },
-      locale: 'en-US'
+      viewport: { width: 1280, height: 900 },
+      locale: 'en-US',
+      extraHTTPHeaders: {
+        'Accept-Language': 'en-US,en;q=0.9'
+      }
     });
 
     const page = await context.newPage();
 
     onProgress('Connecting to Facebook post...');
     await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 35000 });
+    await page.waitForTimeout(3500);
 
-    // Give page a moment to render JS components
-    await page.waitForTimeout(3000);
-
-    // Dismiss cookie banners and login dialog overlays if present
+    // Dismiss cookie banners and login dialog overlays
     onProgress('Dismissing overlays and dialogs...');
     const dismissSelectors = [
       'div[aria-label="Close"]',
@@ -83,64 +128,53 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
         const btn = await page.$(selector);
         if (btn && await btn.isVisible()) {
           await btn.click({ timeout: 1500 });
-          await page.waitForTimeout(800);
+          await page.waitForTimeout(600);
         }
       } catch {
-        // Non-blocking if overlay not present
+        // Non-blocking
       }
     }
 
-    // Try to switch comment filter to "All comments" if dropdown is visible
-    try {
-      const filterButton = await page.$('text="Most relevant", text="Top comments"');
-      if (filterButton && await filterButton.isVisible()) {
-        await filterButton.click({ timeout: 2000 });
-        await page.waitForTimeout(1000);
-        const allCommentsOption = await page.$('text="All comments"');
-        if (allCommentsOption) {
-          await allCommentsOption.click({ timeout: 2000 });
-          await page.waitForTimeout(2000);
-        }
-      }
-    } catch {
-      // Sorting dropdown not always available or required
-    }
-
-    // Expand comments iteratively
-    onProgress('Expanding comments...');
+    // Expand comments iteratively by clicking "View more comments", replies, and scrolling
+    onProgress('Expanding comments and threads...');
     const maxScrollRounds = 12;
+
     for (let round = 1; round <= maxScrollRounds; round++) {
-      let expandedAny = false;
+      const clickedText = await page.evaluate(() => {
+        const allSpans = Array.from(document.querySelectorAll('span, div[role="button"]'));
+        const target = allSpans.find(s => {
+          const t = s.textContent.trim().toLowerCase();
+          return t.includes('view more comments') ||
+                 t.includes('view previous comments') ||
+                 t.includes('tingnan ang higit pang') ||
+                 t.includes('view all') ||
+                 t.includes('replies') ||
+                 t.includes('reply');
+        });
 
-      // Click "View more comments", "View previous comments", or "View X replies"
-      const expandSelectors = [
-        'div[role="button"]:has-text("View more comments")',
-        'div[role="button"]:has-text("View previous comments")',
-        'div[role="button"]:has-text("View all")',
-        'span:has-text("View more comments")',
-        'span:has-text("View previous comments")'
-      ];
-
-      for (const sel of expandSelectors) {
-        try {
-          const buttons = await page.$$(sel);
-          for (const btn of buttons.slice(0, 3)) {
-            if (await btn.isVisible()) {
-              await btn.click({ timeout: 1000 });
-              expandedAny = true;
-              await page.waitForTimeout(1000);
+        if (target) {
+          let clickable = target;
+          while (clickable && clickable !== document.body && clickable.tagName !== 'BUTTON' && clickable.getAttribute('role') !== 'button') {
+            if (clickable.parentElement?.getAttribute('role') === 'button' || clickable.parentElement?.tagName === 'BUTTON') {
+              clickable = clickable.parentElement;
+              break;
             }
+            clickable = clickable.parentElement;
           }
-        } catch {
-          // ignore transient click errors
+          (clickable || target).click();
+          return target.textContent.trim();
         }
+        return null;
+      });
+
+      if (clickedText) {
+        onProgress(`Expanding comments: Clicked "${clickedText.slice(0, 30)}" (Round ${round}/${maxScrollRounds})...`);
+        await page.waitForTimeout(2000);
+      } else {
+        // Gradual scroll to trigger dynamic lazy loading
+        await page.evaluate(() => window.scrollBy(0, 900));
+        await page.waitForTimeout(1500);
       }
-
-      // Scroll down gradually
-      await page.evaluate(() => window.scrollBy(0, 800));
-      await page.waitForTimeout(1200);
-
-      onProgress(`Scrolling and expanding comments (Round ${round}/${maxScrollRounds})...`);
     }
 
     onProgress('Extracting comment text and metadata...');
@@ -149,38 +183,99 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
     const rawComments = await page.evaluate(() => {
       const results = [];
 
-      // Query comment containers (standard Facebook comment structures)
-      const articles = document.querySelectorAll('div[role="article"]');
-      if (articles.length > 0) {
-        articles.forEach((el) => {
-          // Find author link or strong element
-          const authorEl = el.querySelector('a[role="link"] > span, span[dir="auto"] > strong, a[attributionsrc] > span');
-          const authorText = authorEl ? authorEl.textContent.trim() : '';
+      // Find all articles that represent individual comments
+      // (Exclude main post container by checking that aria-label contains comment/komento)
+      const allArticles = Array.from(document.querySelectorAll('div[role="article"]'));
+      const commentArticles = allArticles.filter(a => {
+        const aria = (a.getAttribute('aria-label') || '').toLowerCase();
+        return aria.includes('comment by') || aria.includes('komento ni') || aria.includes('comment') || aria.includes('komento');
+      });
 
-          // Find timestamp
-          const dateEl = el.querySelector('abbr, a[href*="comment_id"], a[href*="reply_comment_id"]');
-          const dateText = dateEl ? (dateEl.getAttribute('aria-label') || dateEl.textContent.trim()) : '';
+      if (commentArticles.length > 0) {
+        commentArticles.forEach((a) => {
+          const rawAria = a.getAttribute('aria-label') || '';
 
-          // Find comment text body
-          const bodyEl = el.querySelector('div[dir="auto"][style*="text-align"], div[dir="auto"]');
-          const bodyText = bodyEl ? bodyEl.textContent.trim() : '';
+          // 1. Author and Date extraction (aria-label priority)
+          let author = '';
+          let date = '';
 
-          if (authorText || bodyText) {
-            results.push({ authorText, dateText, bodyText });
+          const mEn = rawAria.match(/Comment by\s+(.+?)\s+([0-9]+\s+[a-zA-Z]+(?:\s+ago)?|[0-9]+[smhdwy]|yesterday|just now|about\s+[0-9]+.+)$/i);
+          if (mEn) {
+            author = mEn[1].trim();
+            date = mEn[2].trim();
+          } else {
+            const mTl = rawAria.match(/Komento ni\s+(.+?)\s+([0-9]+\s+.+?ang nakalipas|[0-9]+[smhdwy]|kahapon|ngayon lang)$/i);
+            if (mTl) {
+              author = mTl[1].trim();
+              date = mTl[2].trim();
+            } else {
+              const mPref = rawAria.match(/^(?:Comment by|Komento ni)\s+(.+)$/i);
+              if (mPref) {
+                author = mPref[1].trim();
+              }
+            }
+          }
+
+          // Fallback DOM Author
+          if (!author) {
+            const authorEl = a.querySelector('a[role="link"] > span, span[dir="auto"] > strong, a[href*="facebook.com/"] > span, h3, h4');
+            if (authorEl && authorEl.textContent.trim()) {
+              author = authorEl.textContent.trim();
+            }
+          }
+
+          // Fallback DOM Timestamp
+          if (!date) {
+            const dateEl = a.querySelector('abbr, a[href*="comment_id"], a[role="link"]');
+            if (dateEl) {
+              const dateAttr = dateEl.getAttribute('aria-label');
+              const dateText = dateEl.textContent.trim();
+              date = dateAttr || dateText;
+            }
+          }
+
+          // 3. Comment text extraction
+          const dirNodes = Array.from(a.querySelectorAll('div[dir="auto"], span[dir="auto"]'));
+          const textCandidates = dirNodes
+            .map(n => n.textContent.trim())
+            .filter(t => {
+              if (!t) return false;
+              if (author && t.toLowerCase() === author.toLowerCase()) return false;
+              if (t.includes('· Reply') || t.includes('· Like') || t.startsWith('Edited\n')) return false;
+              return true;
+            });
+
+          let bodyText = textCandidates.length > 0 ? textCandidates[0] : '';
+          if (author && bodyText.toLowerCase().startsWith(author.toLowerCase())) {
+            const remainder = bodyText.slice(author.length).trim();
+            if (remainder) {
+              bodyText = remainder;
+            }
+          }
+
+          if (author || bodyText || rawAria) {
+            results.push({
+              rawAria,
+              authorText: author,
+              dateText: date,
+              bodyText
+            });
           }
         });
       }
 
-      // Fallback: If no role="article" found, query elements with dir="auto"
+      // Fallback: If no comment articles matched, look for list items
       if (results.length === 0) {
-        const fallbackNodes = document.querySelectorAll('ul > li');
-        fallbackNodes.forEach((el) => {
+        const listItems = document.querySelectorAll('ul > li');
+        listItems.forEach((el) => {
           const authorEl = el.querySelector('a, strong');
           const textEl = el.querySelector('span[dir="auto"]');
+          const dateEl = el.querySelector('abbr, a[href*="comment_id"]');
           if (authorEl && textEl) {
             results.push({
+              rawAria: '',
               authorText: authorEl.textContent.trim(),
-              dateText: '',
+              dateText: dateEl ? dateEl.textContent.trim() : '',
               bodyText: textEl.textContent.trim()
             });
           }
@@ -190,21 +285,34 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
       return results;
     });
 
-    // Parse and deduplicate
+    // Parse, merge aria-label metadata, and deduplicate
     const uniqueMap = new Map();
     let idx = 1;
 
     for (const raw of rawComments) {
-      const parsed = parseCommentNode(raw);
-      if (!parsed.text && !parsed.author) continue;
+      let { author, date, text } = parseCommentNode(raw);
 
-      const dedupeKey = `${parsed.author}_${parsed.text.slice(0, 40)}`;
+      // If author or date is missing, parse from container aria-label
+      if ((!author || author === 'Unknown' || !date || date === 'Unknown') && raw.rawAria) {
+        const ariaParsed = parseAriaCommentLabel(raw.rawAria);
+        if ((!author || author === 'Unknown') && ariaParsed.author) {
+          author = ariaParsed.author;
+        }
+        if ((!date || date === 'Unknown') && ariaParsed.date) {
+          date = ariaParsed.date;
+        }
+      }
+
+      // If text is still empty, skip
+      if (!text && (!author || author === 'Unknown')) continue;
+
+      const dedupeKey = `${author}_${text.slice(0, 40)}`;
       if (!uniqueMap.has(dedupeKey)) {
         uniqueMap.set(dedupeKey, {
           id: `cmt-${idx++}`,
-          author: parsed.author,
-          date: parsed.date || 'Recent',
-          text: parsed.text
+          author: author || 'Unknown',
+          date: date || 'Recent',
+          text
         });
       }
     }

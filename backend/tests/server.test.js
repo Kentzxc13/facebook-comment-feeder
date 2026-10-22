@@ -1,5 +1,10 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import request from 'supertest';
+
+vi.mock('../src/scraper.js', () => ({
+  scrapeFacebookComments: vi.fn().mockResolvedValue([])
+}));
+
 import { app } from '../src/server.js';
 
 describe('Backend API Endpoints', () => {
