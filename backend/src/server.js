@@ -2,12 +2,17 @@ import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
 
-// Auto-load .env file if present (Node.js 20.6+)
-try {
-  process.loadEnvFile?.();
-} catch {
-  // .env file is optional
+// Auto-load .env file from workspace root (Node.js 20.6+)
+const envPath = fileURLToPath(new URL('../../.env', import.meta.url));
+export function reloadEnv() {
+  try {
+    process.loadEnvFile?.(envPath);
+  } catch {
+    try { process.loadEnvFile?.(); } catch {}
+  }
 }
+reloadEnv();
+
 import { isValidFacebookUrl } from './utils/urlValidator.js';
 import { createJob, getJob, updateJob } from './jobs.js';
 import { scrapeFacebookComments } from './scraper.js';
@@ -20,11 +25,17 @@ app.use(express.json());
 
 // Health check endpoint for Render/hosting
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  reloadEnv();
+  res.json({
+    status: 'ok',
+    hasApiToken: !!process.env.APIFY_API_TOKEN,
+    timestamp: new Date().toISOString()
+  });
 });
 
 // Initiate scraping job
 app.post('/api/scrape', async (req, res) => {
+  reloadEnv();
   const { url, mode = 'default', apiKey } = req.body || {};
 
   const validation = isValidFacebookUrl(url);

@@ -28,7 +28,8 @@ export default function Home() {
   const [url, setUrl] = useState('');
   const [mode, setMode] = useState('default'); // 'default' | 'advanced'
   const [apiKey, setApiKey] = useState('');
-  const [showApiSettings, setShowApiSettings] = useState(false);
+  const [hasServerToken, setHasServerToken] = useState(false);
+  const [showOverrideInput, setShowOverrideInput] = useState(false);
   const [rawComments, setRawComments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState('');
@@ -40,8 +41,15 @@ export default function Home() {
 
   const pollIntervalRef = useRef(null);
 
-  // Load saved API key on client
+  // Check backend health and server-side .env token
   useEffect(() => {
+    fetch('/health')
+      .then(res => res.json())
+      .then(data => {
+        if (data.hasApiToken) setHasServerToken(true);
+      })
+      .catch(() => {});
+
     try {
       const saved = localStorage.getItem('fb_cf_apify_token');
       if (saved) setApiKey(saved);
@@ -227,34 +235,65 @@ export default function Home() {
             </div>
           </div>
 
-          {/* Advanced Mode API Key Input Bar */}
+          {/* Advanced Mode API Key Status & Input Bar */}
           {mode === 'advanced' && (
-            <div className="mb-5 p-4 rounded-xl bg-violet-950/20 border border-violet-500/25 text-xs">
-              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
-                <label className="flex items-center gap-1.5 font-medium text-slate-200">
-                  <Key size={14} className="text-violet-400" />
-                  <span>Apify API Token (Optional if configured in .env)</span>
-                </label>
-                <a
-                  href="https://console.apify.com/account/integrations"
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 transition-colors"
-                >
-                  <span>Get Free Token</span>
-                  <ExternalLink size={12} />
-                </a>
-              </div>
-              <input
-                type="password"
-                placeholder="Enter your apify_api_... token (persisted locally in browser)"
-                value={apiKey}
-                onChange={(e) => handleApiKeyChange(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-[#090d16]/90 border border-white/[0.08] rounded-lg text-slate-200 placeholder-slate-500 text-xs outline-none focus:border-violet-500 transition-all font-mono"
-              />
-              <p className="mt-2 text-[11px] text-slate-400">
-                Apify provides $5 free monthly credit. If left empty, the backend will check for <code className="text-slate-300 font-mono">APIFY_API_TOKEN</code> in your environment.
-              </p>
+            <div className="mb-5">
+              {hasServerToken && !showOverrideInput ? (
+                <div className="p-3.5 rounded-xl bg-emerald-500/10 border border-emerald-500/25 flex items-center justify-between text-xs text-emerald-300">
+                  <div className="flex items-center gap-2">
+                    <ShieldCheck size={16} className="text-emerald-400 shrink-0" />
+                    <span>
+                      Apify Cloud API Token is <strong>connected</strong> from your <code className="px-1 py-0.5 rounded bg-emerald-950/60 font-mono text-emerald-300">.env</code> file. Ready to extract!
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowOverrideInput(true)}
+                    className="text-[11px] text-slate-400 hover:text-slate-200 underline shrink-0 ml-3"
+                  >
+                    Change Key
+                  </button>
+                </div>
+              ) : (
+                <div className="p-4 rounded-xl bg-violet-950/20 border border-violet-500/25 text-xs">
+                  <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                    <label className="flex items-center gap-1.5 font-medium text-slate-200">
+                      <Key size={14} className="text-violet-400" />
+                      <span>Apify API Token (Optional if configured in .env)</span>
+                    </label>
+                    <div className="flex items-center gap-3">
+                      {hasServerToken && (
+                        <button
+                          type="button"
+                          onClick={() => setShowOverrideInput(false)}
+                          className="text-[11px] text-slate-400 hover:text-slate-200 underline"
+                        >
+                          Use .env Token
+                        </button>
+                      )}
+                      <a
+                        href="https://console.apify.com/account/integrations"
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 transition-colors"
+                      >
+                        <span>Get Free Token</span>
+                        <ExternalLink size={12} />
+                      </a>
+                    </div>
+                  </div>
+                  <input
+                    type="password"
+                    placeholder="Enter your apify_api_... token (persisted locally in browser)"
+                    value={apiKey}
+                    onChange={(e) => handleApiKeyChange(e.target.value)}
+                    className="w-full px-3.5 py-2.5 bg-[#090d16]/90 border border-white/[0.08] rounded-lg text-slate-200 placeholder-slate-500 text-xs outline-none focus:border-violet-500 transition-all font-mono"
+                  />
+                  <p className="mt-2 text-[11px] text-slate-400">
+                    Apify provides $5 free monthly credit. If left empty, the backend will check for <code className="text-slate-300 font-mono">APIFY_API_TOKEN</code> in your environment.
+                  </p>
+                </div>
+              )}
             </div>
           )}
 

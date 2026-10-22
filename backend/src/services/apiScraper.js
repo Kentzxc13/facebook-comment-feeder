@@ -1,5 +1,8 @@
+import { fileURLToPath } from 'url';
 import { normalizeFacebookDate } from '../utils/dateNormalizer.js';
 import { isValidFacebookUrl } from '../utils/urlValidator.js';
+
+const envPath = fileURLToPath(new URL('../../../.env', import.meta.url));
 
 /**
  * Scrapes Facebook comments via Apify Facebook Comments Scraper Actor.
@@ -9,7 +12,13 @@ import { isValidFacebookUrl } from '../utils/urlValidator.js';
  * @returns {Promise<Array<{ id: string, author: string, date: string, text: string }>>}
  */
 export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress = () => {}) {
-  const token = options.token || process.env.APIFY_API_TOKEN;
+  try {
+    process.loadEnvFile?.(envPath);
+  } catch {
+    try { process.loadEnvFile?.(); } catch {}
+  }
+
+  const token = (options.token && options.token.trim()) || process.env.APIFY_API_TOKEN;
   if (!token) {
     throw new Error('Apify API token is required for Advanced Mode. Please provide an Apify API token or switch to Default mode.');
   }
