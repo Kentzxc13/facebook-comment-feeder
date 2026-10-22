@@ -25,6 +25,22 @@ export const app = express();
 app.use(cors());
 app.use(express.json());
 
+// Root endpoint for friendly browser visits and status checks
+app.get('/', (req, res) => {
+  reloadEnv();
+  res.json({
+    status: 'online',
+    service: 'Facebook Comment Feeder Backend API',
+    hasApiToken: !!process.env.APIFY_API_TOKEN,
+    endpoints: {
+      health: '/health',
+      apifyUsage: '/api/apify/usage',
+      scrape: '/api/scrape'
+    },
+    timestamp: new Date().toISOString()
+  });
+});
+
 // Health check endpoint for Render/hosting
 app.get('/health', (req, res) => {
   reloadEnv();
