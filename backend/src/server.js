@@ -1,14 +1,16 @@
 import express from 'express';
 import cors from 'cors';
+import path from 'path';
 import { fileURLToPath } from 'url';
 
 // Auto-load .env file from workspace root (Node.js 20.6+)
-const envPath = fileURLToPath(new URL('../../.env', import.meta.url));
 export function reloadEnv() {
   try {
-    process.loadEnvFile?.(envPath);
+    process.loadEnvFile?.();
   } catch {
-    try { process.loadEnvFile?.(); } catch {}
+    try {
+      process.loadEnvFile?.(path.resolve(process.cwd(), '.env'));
+    } catch {}
   }
 }
 reloadEnv();

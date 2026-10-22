@@ -1,8 +1,6 @@
-import { fileURLToPath } from 'url';
+import path from 'path';
 import { normalizeFacebookDate } from '../utils/dateNormalizer.js';
 import { isValidFacebookUrl } from '../utils/urlValidator.js';
-
-const envPath = fileURLToPath(new URL('../../../.env', import.meta.url));
 
 /**
  * Scrapes Facebook comments via Apify Facebook Comments Scraper Actor.
@@ -13,12 +11,16 @@ const envPath = fileURLToPath(new URL('../../../.env', import.meta.url));
  */
 export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress = () => {}) {
   try {
-    process.loadEnvFile?.(envPath);
+    process.loadEnvFile?.();
   } catch {
-    try { process.loadEnvFile?.(); } catch {}
+    try {
+      process.loadEnvFile?.(path.resolve(process.cwd(), '.env'));
+    } catch {}
   }
 
-  const token = (options.token && options.token.trim()) || process.env.APIFY_API_TOKEN;
+  const token = options.token !== undefined 
+    ? options.token.trim() 
+    : (process.env.APIFY_API_TOKEN || '').trim();
   if (!token) {
     throw new Error('Apify API token is required for Advanced Mode. Please provide an Apify API token or switch to Default mode.');
   }
@@ -71,7 +73,7 @@ export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress
     await new Promise((r) => setTimeout(r, 3000));
 
     const pollRes = await fetch(pollUrl);
-    if (pollRes.ok) {
+    if (pollRes?.ok) {
       const pollData = await pollRes.json();
       status = pollData?.data?.status;
       onProgress(`Cloud worker status: ${status} (Pass ${attempts})...`);

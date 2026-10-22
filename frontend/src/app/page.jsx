@@ -26,7 +26,6 @@ import {
   Columns,
   Calendar,
   ExternalLink,
-  Plus,
   FileSpreadsheet
 } from 'lucide-react';
 import { anonymizeComments } from '../utils/anonymizer.js';
@@ -48,7 +47,6 @@ export default function Home() {
   const [pageSize, setPageSize] = useState(8);
   const [currentPage, setCurrentPage] = useState(1);
   const [jumpPage, setJumpPage] = useState('1');
-  const [showInputBar, setShowInputBar] = useState(true);
 
   const pollIntervalRef = useRef(null);
 
@@ -203,7 +201,7 @@ export default function Home() {
 
   return (
     <div className="mx-auto max-w-[1440px] rounded-3xl bg-white border border-slate-200/90 shadow-[0_12px_40px_-15px_rgba(0,0,0,0.06)] overflow-hidden flex flex-col min-h-[92vh]">
-      {/* BEGIN: Clean Top Navigation Bar (Dummy links removed) */}
+      {/* BEGIN: Clean Top Navigation Bar */}
       <header className="border-b border-slate-200/80 bg-white px-6 py-3.5">
         <div className="flex items-center justify-between gap-4">
           {/* Brand Logo */}
@@ -217,17 +215,6 @@ export default function Home() {
                 v2.4
               </span>
             </span>
-          </div>
-
-          {/* Engine Status & System Badge */}
-          <div className="flex items-center gap-3">
-            <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-emerald-50 border border-emerald-200/80 text-xs font-medium text-emerald-700 shadow-2xs">
-              <span className="relative flex h-2 w-2">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
-                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
-              </span>
-              <span>⚡ Engines Online ({mode === 'advanced' ? 'Cloud API' : 'Local Playwright'})</span>
-            </div>
           </div>
         </div>
       </header>
@@ -262,9 +249,8 @@ export default function Home() {
             </p>
           </div>
 
-          {/* Right Action Group: Export Excel & Add / Fetch Post Button */}
+          {/* Right Action Group: Export Excel */}
           <div className="flex items-center gap-3">
-            {/* Export All Data Button */}
             <button
               type="button"
               onClick={handleDownload}
@@ -274,87 +260,96 @@ export default function Home() {
               <FileSpreadsheet size={15} className="text-emerald-600" />
               <span>{isDownloading ? 'Generating...' : selectedIds.size > 0 ? `Export Selected (${selectedIds.size})` : 'Export All Data'}</span>
             </button>
-
-            {/* Primary Action Button: Toggle / Fetch New Post */}
-            <button
-              type="button"
-              onClick={() => {
-                setShowInputBar(true);
-                if (url.trim()) handleFetch();
-              }}
-              className="inline-flex items-center gap-1.5 rounded-full bg-[#ff5733] hover:bg-[#ff4d30] px-5 py-2 text-xs font-semibold text-white shadow-sm shadow-[#ff5733]/30 transition-all active:scale-[0.98]"
-            >
-              <Plus size={15} strokeWidth={2.5} />
-              <span>+ Add / Fetch Post</span>
-            </button>
           </div>
         </div>
       </section>
       {/* END: Page Header & Meta Section */}
 
-      {/* BEGIN: Expandable URL Input Form Bar */}
-      {showInputBar && (
-        <section className="px-8 pb-3">
-          <form onSubmit={handleFetch} className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 shadow-2xs">
-            <div className="flex flex-col sm:flex-row gap-2.5">
-              <div className="relative flex-1 flex items-center">
-                <Link2 className="absolute left-3.5 text-slate-400 pointer-events-none" size={16} />
-                <input
-                  type="text"
-                  placeholder="Paste Facebook post URL (e.g., https://www.facebook.com/...)"
-                  value={url}
-                  onChange={(e) => setUrl(e.target.value)}
-                  disabled={isLoading}
-                  className="w-full pl-9 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#ff5733] focus:ring-1 focus:ring-[#ff5733] transition-all"
-                />
-                {url && !isLoading && (
-                  <button
-                    type="button"
-                    onClick={() => setUrl('')}
-                    className="absolute right-3 text-slate-400 hover:text-slate-600"
-                  >
-                    <X size={14} />
-                  </button>
-                )}
-              </div>
-
-              <button
-                type="submit"
-                disabled={isLoading || !url.trim()}
-                className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs px-5 py-2 shadow-sm transition-all"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={14} className="animate-spin" />
-                    <span>Extracting...</span>
-                  </>
-                ) : (
-                  <>
-                    <Sparkles size={14} />
-                    <span>Extract Now</span>
-                  </>
-                )}
-              </button>
+      {/* BEGIN: URL Input Form Bar */}
+      <section className="px-8 pb-3">
+        <form onSubmit={handleFetch} className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 shadow-2xs">
+          <div className="flex flex-col sm:flex-row gap-2.5">
+            <div className="relative flex-1 flex items-center">
+              <Link2 className="absolute left-3.5 text-slate-400 pointer-events-none" size={16} />
+              <input
+                type="text"
+                placeholder="Paste Facebook post URL (e.g., https://www.facebook.com/...)"
+                value={url}
+                onChange={(e) => setUrl(e.target.value)}
+                disabled={isLoading}
+                className="w-full pl-9 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#ff5733] focus:ring-1 focus:ring-[#ff5733] transition-all"
+              />
+              {url && !isLoading && (
+                <button
+                  type="button"
+                  onClick={() => setUrl('')}
+                  className="absolute right-3 text-slate-400 hover:text-slate-600"
+                >
+                  <X size={14} />
+                </button>
+              )}
             </div>
 
-            {/* Loading / Error Banner */}
-            {isLoading && (
-              <div className="mt-2.5 p-2.5 rounded-lg bg-orange-50 border border-orange-200 text-xs text-orange-800 flex items-center gap-2 animate-in fade-in">
-                <Loader2 size={14} className="animate-spin text-[#ff5733]" />
-                <span className="font-medium">{progress || 'Scraping comments and unfolding threads...'}</span>
-              </div>
-            )}
+            <button
+              type="submit"
+              disabled={isLoading || !url.trim()}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs px-5 py-2 shadow-sm transition-all"
+            >
+              {isLoading ? (
+                <>
+                  <Loader2 size={14} className="animate-spin" />
+                  <span>Extracting...</span>
+                </>
+              ) : (
+                <>
+                  <Sparkles size={14} />
+                  <span>Extract Now</span>
+                </>
+              )}
+            </button>
+          </div>
 
-            {error && (
-              <div className="mt-2.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2 animate-in fade-in">
-                <AlertCircle size={14} className="shrink-0 text-red-500" />
-                <span>{error}</span>
+          {/* Mode Guidance & Apify Quota Disclaimer */}
+          <div className="mt-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs">
+            <div className="flex items-center gap-2 text-slate-600">
+              <span className="font-semibold text-slate-900 flex items-center gap-1">
+                {mode === 'default' ? '⚡ Default Mode Selected:' : '🚀 Cloud API Mode Selected:'}
+              </span>
+              <span>
+                {mode === 'default'
+                  ? 'Best for short posts with ≤ 10 comments (Quick local browser, consumes 0 API credits).'
+                  : 'Recommended for posts with > 10 comments (Deep scraper for nested & hidden replies).'}
+              </span>
+            </div>
+
+            {mode === 'advanced' ? (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200/80 text-amber-800 text-[11px] font-medium shrink-0">
+                <span>⚠️ Apify Quota Notice: Free tier has limited monthly credits (Max 250 comments / post).</span>
+              </div>
+            ) : (
+              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[11px] font-medium shrink-0">
+                <span>✓ Free Unlimited Local Scraping</span>
               </div>
             )}
-          </form>
-        </section>
-      )}
-      {/* END: Expandable URL Input Form Bar */}
+          </div>
+
+          {/* Loading / Error Banner */}
+          {isLoading && (
+            <div className="mt-2.5 p-2.5 rounded-lg bg-orange-50 border border-orange-200 text-xs text-orange-800 flex items-center gap-2 animate-in fade-in">
+              <Loader2 size={14} className="animate-spin text-[#ff5733]" />
+              <span className="font-medium">{progress || 'Scraping comments and unfolding threads...'}</span>
+            </div>
+          )}
+
+          {error && (
+            <div className="mt-2.5 p-2.5 rounded-lg bg-red-50 border border-red-200 text-xs text-red-700 flex items-center gap-2 animate-in fade-in">
+              <AlertCircle size={14} className="shrink-0 text-red-500" />
+              <span>{error}</span>
+            </div>
+          )}
+        </form>
+      </section>
+      {/* END: URL Input Form Bar */}
 
       {/* BEGIN: Data Filters Toolbar (Mirroring reference layout) */}
       <div className="px-8 pb-3">
@@ -375,29 +370,33 @@ export default function Home() {
 
           {/* Right: Functional Controls */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Scraper Mode Pill Switcher */}
+            {/* Scraper Mode Pill Switcher with Comments Threshold Badges */}
             <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
               <button
                 type="button"
                 onClick={() => setMode('default')}
-                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+                title="Default: Best for posts with <= 10 comments (Fast & free local browser)"
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all ${
                   mode === 'default'
-                    ? 'bg-white text-slate-800 shadow-2xs'
+                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                ⚡ Default
+                <span>⚡ Default</span>
+                <span className="text-[10px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-mono">≤10</span>
               </button>
               <button
                 type="button"
                 onClick={() => setMode('advanced')}
-                className={`rounded-md px-2.5 py-1 font-medium transition-all ${
+                title="Cloud API: For posts with > 10 comments (Apify deep scraper for all nested comments)"
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all ${
                   mode === 'advanced'
-                    ? 'bg-white text-slate-800 shadow-2xs'
+                    ? 'bg-white text-[#ff5733] shadow-2xs font-semibold'
                     : 'text-slate-500 hover:text-slate-800'
                 }`}
               >
-                🚀 Cloud API
+                <span>🚀 Cloud API</span>
+                <span className="text-[10px] px-1 py-0.2 rounded bg-orange-100 text-orange-700 font-mono">&gt;10</span>
               </button>
             </div>
 

@@ -7,7 +7,7 @@ export const metadata = {
 
 export default function RootLayout({ children }) {
   return (
-    <html lang="en" className="dark">
+    <html lang="en" className="h-full bg-slate-100">
       <head>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="anonymous" />
@@ -16,7 +16,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body className="bg-[#090d16] text-slate-100 antialiased selection:bg-indigo-500/30 selection:text-white min-h-screen">
+      <body className="min-h-full font-sans text-slate-800 antialiased selection:bg-[#ffe8e2] selection:text-[#ff5733] p-4 md:p-8">
         {children}
       </body>
     </html>
