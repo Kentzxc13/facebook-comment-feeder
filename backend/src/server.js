@@ -87,7 +87,19 @@ app.post('/api/scrape', async (req, res) => {
       if (mode === 'advanced') {
         comments = await scrapeFacebookCommentsViaApi(job.url, { token: apiKey }, onProgress);
       } else {
-        comments = await scrapeFacebookComments(job.url, onProgress);
+        try {
+          comments = await scrapeFacebookComments(job.url, onProgress);
+        } catch (localErr) {
+          // Auto-fallback to Apify Cloud Scraper if local browser binary is missing on cloud hosting (Render)
+          const isMissingBrowser = localErr.message?.includes("Executable doesn't exist") ||
+                                   localErr.message?.includes("looks like Playwright was just installed");
+          if (isMissingBrowser && process.env.APIFY_API_TOKEN) {
+            onProgress('Playwright unavailable on cloud host. Auto-routing through Apify Cloud Scraper...');
+            comments = await scrapeFacebookCommentsViaApi(job.url, { token: apiKey }, onProgress);
+          } else {
+            throw localErr;
+          }
+        }
       }
 
       updateJob(job.id, {

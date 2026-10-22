@@ -271,11 +271,11 @@ export default function Home() {
       {/* END: Top Navigation Bar */}
 
       {/* BEGIN: Page Header & Meta Section */}
-      <section className="px-8 pt-7 pb-5">
+      <section className="px-3.5 sm:px-8 pt-5 sm:pt-7 pb-4 sm:pb-5">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
           {/* Left: Page Title & Meta context */}
           <div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-950 flex items-center gap-2.5">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-950 flex items-center gap-2.5">
               Facebook Comments Feed
               <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-600 border border-slate-200">
                 Live Feed
@@ -316,19 +316,19 @@ export default function Home() {
       {/* END: Page Header & Meta Section */}
 
       {/* BEGIN: URL Input Form Bar */}
-      <section className="px-8 pb-3">
-        <form onSubmit={handleFetch} className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3.5 shadow-2xs">
+      <section className="px-3.5 sm:px-8 pb-3">
+        <form onSubmit={handleFetch} className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3 sm:p-3.5 shadow-2xs">
           {/* Mode Selector Toggle Tabs */}
-          <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
-            <div className="flex items-center gap-2">
-              <span className="text-xs font-bold text-slate-700 tracking-wider uppercase text-[11px]">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 mb-3">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
+              <span className="text-xs font-bold text-slate-700 tracking-wider uppercase text-[11px] shrink-0">
                 Engine:
               </span>
-              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 text-xs shadow-2xs">
+              <div className="grid grid-cols-2 sm:inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 text-xs shadow-2xs w-full sm:w-auto">
                 <button
                   type="button"
                   onClick={() => setMode('default')}
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                     mode === 'default'
                       ? 'bg-slate-900 text-white shadow-sm'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -336,17 +336,17 @@ export default function Home() {
                 >
                   <span className="text-amber-400">⚡</span>
                   <span>Default</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                  <span className={`text-[10px] px-1 py-0.5 rounded font-mono font-medium ${
                     mode === 'default' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'
                   }`}>
-                    ≤ 10 comments
+                    ≤ 10
                   </span>
                 </button>
 
                 <button
                   type="button"
                   onClick={() => setMode('advanced')}
-                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                  className={`flex items-center justify-center gap-1.5 sm:gap-2 rounded-lg px-2 sm:px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
                     mode === 'advanced'
                       ? 'bg-[#ff5733] text-white shadow-sm shadow-[#ff5733]/30'
                       : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
@@ -354,10 +354,10 @@ export default function Home() {
                 >
                   <span>🚀</span>
                   <span>Cloud API</span>
-                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                  <span className={`text-[10px] px-1 py-0.5 rounded font-mono font-medium ${
                     mode === 'advanced' ? 'bg-[#e03d22] text-white' : 'bg-orange-50 text-orange-700 border border-orange-200/60'
                   }`}>
-                    &gt; 10 comments
+                    &gt; 10
                   </span>
                 </button>
               </div>

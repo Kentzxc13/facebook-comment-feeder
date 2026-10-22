@@ -16,7 +16,7 @@ export default function RootLayout({ children }) {
           rel="stylesheet"
         />
       </head>
-      <body className="min-h-full font-sans text-slate-800 antialiased selection:bg-[#ffe8e2] selection:text-[#ff5733] p-4 md:p-8">
+      <body className="min-h-full font-sans text-slate-800 antialiased selection:bg-[#ffe8e2] selection:text-[#ff5733] p-2 sm:p-4 md:p-8">
         {children}
       </body>
     </html>
