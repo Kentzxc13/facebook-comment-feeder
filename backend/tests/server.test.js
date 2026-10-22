@@ -6,7 +6,15 @@ vi.mock('../src/scraper.js', () => ({
 }));
 
 vi.mock('../src/services/apiScraper.js', () => ({
-  scrapeFacebookCommentsViaApi: vi.fn().mockResolvedValue([])
+  scrapeFacebookCommentsViaApi: vi.fn().mockResolvedValue([]),
+  getApifyUsage: vi.fn().mockResolvedValue({
+    hasToken: true,
+    usedUsd: 0.54,
+    limitUsd: 5.00,
+    remainingUsd: 4.46,
+    percentageUsed: 10.7,
+    resetDate: 'Nov 22, 2026'
+  })
 }));
 
 import { app } from '../src/server.js';
@@ -50,5 +58,15 @@ describe('Backend API Endpoints', () => {
     const res = await request(app).get('/api/jobs/unknown-id');
     expect(res.status).toBe(404);
     expect(res.body.error).toBe('Job not found');
+  });
+
+  it('GET /api/apify/usage returns Apify credit usage and limit stats', async () => {
+    const res = await request(app).get('/api/apify/usage');
+    expect(res.status).toBe(200);
+    expect(res.body.hasToken).toBe(true);
+    expect(res.body.usedUsd).toBe(0.54);
+    expect(res.body.limitUsd).toBe(5.00);
+    expect(res.body.remainingUsd).toBe(4.46);
+    expect(res.body.percentageUsed).toBe(10.7);
   });
 });

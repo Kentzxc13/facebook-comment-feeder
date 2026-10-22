@@ -128,3 +128,71 @@ export async function scrapeFacebookCommentsViaApi(url, options = {}, onProgress
   onProgress(`Extraction complete! Received ${results.length} comments from cloud.`);
   return results;
 }
+
+/**
+ * Fetches monthly usage and limits from Apify Account API.
+ * @param {string} [customToken] 
+ * @returns {Promise<{ hasToken: boolean, usedUsd?: number, limitUsd?: number, remainingUsd?: number, percentageUsed?: number, resetDate?: string, error?: string }>}
+ */
+export async function getApifyUsage(customToken) {
+  try {
+    process.loadEnvFile?.();
+  } catch {
+    try {
+      process.loadEnvFile?.(path.resolve(process.cwd(), '.env'));
+    } catch {}
+  }
+
+  const token = (customToken && customToken.trim()) || process.env.APIFY_API_TOKEN;
+  if (!token) {
+    return {
+      hasToken: false,
+      error: 'No Apify API token configured in .env'
+    };
+  }
+
+  try {
+    const [usageRes, limitsRes] = await Promise.all([
+      fetch(`https://api.apify.com/v2/users/me/usage/monthly?token=${encodeURIComponent(token)}`),
+      fetch(`https://api.apify.com/v2/users/me/limits?token=${encodeURIComponent(token)}`)
+    ]);
+
+    if (!usageRes.ok || !limitsRes.ok) {
+      return {
+        hasToken: true,
+        error: `Apify API returned HTTP ${usageRes.status}/${limitsRes.status}`
+      };
+    }
+
+    const usageData = await usageRes.json();
+    const limitsData = await limitsRes.json();
+
+    const used = usageData?.data?.totalUsageCreditsUsdAfterVolumeDiscount || 0;
+    const limit = limitsData?.data?.limits?.maxMonthlyUsageUsd || 5.00;
+    const remaining = Math.max(0, limit - used);
+    const percentage = limit > 0 ? Math.min(100, Math.round((used / limit) * 1000) / 10) : 0;
+    const cycleEnd = usageData?.data?.usageCycle?.endAt;
+
+    let resetFormatted = null;
+    if (cycleEnd) {
+      try {
+        const d = new Date(cycleEnd);
+        resetFormatted = d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+      } catch {}
+    }
+
+    return {
+      hasToken: true,
+      usedUsd: Number(used.toFixed(2)),
+      limitUsd: Number(limit.toFixed(2)),
+      remainingUsd: Number(remaining.toFixed(2)),
+      percentageUsed: percentage,
+      resetDate: resetFormatted
+    };
+  } catch (err) {
+    return {
+      hasToken: true,
+      error: err.message
+    };
+  }
+}

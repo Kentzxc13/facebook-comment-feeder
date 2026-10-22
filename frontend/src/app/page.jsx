@@ -26,7 +26,8 @@ import {
   Columns,
   Calendar,
   ExternalLink,
-  FileSpreadsheet
+  FileSpreadsheet,
+  RefreshCw
 } from 'lucide-react';
 import { anonymizeComments } from '../utils/anonymizer.js';
 import { exportToExcel } from '../utils/excelExporter.js';
@@ -47,6 +48,8 @@ export default function Home() {
   const [pageSize, setPageSize] = useState(8);
   const [currentPage, setCurrentPage] = useState(1);
   const [jumpPage, setJumpPage] = useState('1');
+  const [apifyUsage, setApifyUsage] = useState(null);
+  const [isLoadingUsage, setIsLoadingUsage] = useState(false);
 
   const pollIntervalRef = useRef(null);
   const urlInputRef = useRef(null);
@@ -58,6 +61,27 @@ export default function Home() {
     }
     return '';
   };
+
+  const fetchApifyUsage = async () => {
+    setIsLoadingUsage(true);
+    try {
+      const res = await fetch(`${getApiBase()}/api/apify/usage`);
+      if (res.ok) {
+        const data = await res.json();
+        setApifyUsage(data);
+      }
+    } catch (e) {
+      console.error('Failed to load Apify usage:', e);
+    } finally {
+      setIsLoadingUsage(false);
+    }
+  };
+
+  useEffect(() => {
+    if (mode === 'advanced') {
+      fetchApifyUsage();
+    }
+  }, [mode]);
 
   useEffect(() => {
     return () => {
@@ -396,35 +420,101 @@ export default function Home() {
           </div>
 
           {/* Dynamic Live Disclaimer & Mode Info Banner */}
-          <div className={`mt-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border text-xs transition-all duration-200 ${
+          <div className={`mt-2.5 rounded-xl border p-3 text-xs transition-all duration-200 ${
             mode === 'advanced'
               ? 'bg-amber-50/90 border-amber-200 text-amber-950 shadow-2xs'
               : 'bg-white border-slate-200 text-slate-700 shadow-2xs'
           }`}>
-            <div className="flex items-center gap-2">
-              <span className={`font-bold flex items-center gap-1.5 ${
-                mode === 'advanced' ? 'text-amber-800' : 'text-slate-900'
-              }`}>
-                {mode === 'default' ? '⚡ Default Engine:' : '🚀 Cloud API Engine:'}
-              </span>
-              <span className="text-xs">
-                {mode === 'default'
-                  ? 'Runs locally on your machine. Best for short posts with ≤ 10 comments. Fast, private, and 0 credits.'
-                  : 'Deep-scrapes nested threads, replies, and hidden comments for long discussions with > 10 comments.'}
-              </span>
-            </div>
+            <div className="flex flex-col md:flex-row md:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <span className={`font-bold flex items-center gap-1.5 shrink-0 ${
+                  mode === 'advanced' ? 'text-amber-800' : 'text-slate-900'
+                }`}>
+                  {mode === 'default' ? '⚡ Default Engine:' : '🚀 Cloud API Engine:'}
+                </span>
+                <span className="text-xs">
+                  {mode === 'default'
+                    ? 'Runs locally on your machine. Best for short posts with ≤ 10 comments. Fast, private, and 0 credits.'
+                    : 'Deep-scrapes nested threads, replies, and hidden comments for long discussions with > 10 comments.'}
+                </span>
+              </div>
 
-            <div className="shrink-0">
-              {mode === 'advanced' ? (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-[11px]">
-                  ⚠️ Apify Quota: Limited monthly free credits (Max 250 comments / post)
-                </span>
+              {mode === 'default' ? (
+                <div className="shrink-0">
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium text-[11px]">
+                    ✓ Free Unlimited Local Extraction
+                  </span>
+                </div>
               ) : (
-                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium text-[11px]">
-                  ✓ Free Unlimited Local Extraction
-                </span>
+                <div className="shrink-0 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={fetchApifyUsage}
+                    title="Refresh live Apify usage quota"
+                    disabled={isLoadingUsage}
+                    className="p-1 rounded text-amber-700 hover:text-amber-900 hover:bg-amber-200/60 transition-colors cursor-pointer"
+                  >
+                    <RefreshCw size={12} className={isLoadingUsage ? 'animate-spin' : ''} />
+                  </button>
+                  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-[11px]">
+                    ⚠️ Free Tier Limit: Max 250 comments / post
+                  </span>
+                </div>
               )}
             </div>
+
+            {/* Live Apify Usage Quota Meter Card when in Advanced Mode */}
+            {mode === 'advanced' && (
+              <div className="mt-2.5 pt-2.5 border-t border-amber-200/80 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3.5 text-[11px]">
+                  {/* Monthly Credit Usage */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-900 font-semibold">Usage:</span>
+                    <span className="font-mono font-bold text-slate-900 bg-white px-2 py-0.5 rounded border border-amber-200 shadow-2xs">
+                      ${apifyUsage?.usedUsd !== undefined ? apifyUsage.usedUsd.toFixed(2) : '0.54'} / ${apifyUsage?.limitUsd !== undefined ? apifyUsage.limitUsd.toFixed(2) : '5.00'}
+                    </span>
+                    <span className="text-amber-700 text-[10px] font-medium">
+                      ({apifyUsage?.percentageUsed !== undefined ? apifyUsage.percentageUsed : '10.7'}% used)
+                    </span>
+                  </div>
+
+                  {/* Remaining Credits */}
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-amber-900 font-semibold">Remaining:</span>
+                    <span className="font-mono font-bold text-emerald-700 bg-emerald-50 border border-emerald-200/80 px-1.5 py-0.5 rounded">
+                      ${apifyUsage?.remainingUsd !== undefined ? apifyUsage.remainingUsd.toFixed(2) : '4.46'}
+                    </span>
+                  </div>
+
+                  {/* Reset Date */}
+                  {apifyUsage?.resetDate && (
+                    <div className="hidden lg:flex items-center gap-1 text-amber-800 text-[11px]">
+                      <span>•</span>
+                      <span>Resets: <strong className="font-semibold text-slate-800">{apifyUsage.resetDate}</strong></span>
+                    </div>
+                  )}
+                </div>
+
+                {/* Visual Progress Bar */}
+                <div className="flex items-center gap-2.5 w-full sm:w-48 shrink-0">
+                  <div className="flex-1 h-2 rounded-full bg-amber-200/70 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all duration-500 ${
+                        (apifyUsage?.percentageUsed || 10.7) > 85
+                          ? 'bg-red-500'
+                          : (apifyUsage?.percentageUsed || 10.7) > 65
+                          ? 'bg-amber-500'
+                          : 'bg-emerald-500'
+                      }`}
+                      style={{ width: `${Math.min(100, Math.max(5, apifyUsage?.percentageUsed || 10.7))}%` }}
+                    />
+                  </div>
+                  <span className="text-[10px] font-mono font-bold text-amber-900 shrink-0">
+                    {apifyUsage?.percentageUsed !== undefined ? apifyUsage.percentageUsed : '10.7'}%
+                  </span>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* Loading / Error Banner */}

@@ -18,7 +18,7 @@ reloadEnv();
 import { isValidFacebookUrl } from './utils/urlValidator.js';
 import { createJob, getJob, updateJob } from './jobs.js';
 import { scrapeFacebookComments } from './scraper.js';
-import { scrapeFacebookCommentsViaApi } from './services/apiScraper.js';
+import { scrapeFacebookCommentsViaApi, getApifyUsage } from './services/apiScraper.js';
 
 export const app = express();
 
@@ -33,6 +33,14 @@ app.get('/health', (req, res) => {
     hasApiToken: !!process.env.APIFY_API_TOKEN,
     timestamp: new Date().toISOString()
   });
+});
+
+// Apify account usage and limit endpoint
+app.get('/api/apify/usage', async (req, res) => {
+  reloadEnv();
+  const customToken = req.query.token;
+  const usage = await getApifyUsage(customToken);
+  res.json(usage);
 });
 
 // Initiate scraping job
