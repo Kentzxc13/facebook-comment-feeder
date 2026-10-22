@@ -49,6 +49,15 @@ export default function Home() {
   const [jumpPage, setJumpPage] = useState('1');
 
   const pollIntervalRef = useRef(null);
+  const urlInputRef = useRef(null);
+
+  // Dynamic API base: points to backend port 5000 in local dev
+  const getApiBase = () => {
+    if (typeof window !== 'undefined' && (window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1')) {
+      return process.env.NEXT_PUBLIC_BACKEND_URL || 'http://localhost:5000';
+    }
+    return '';
+  };
 
   useEffect(() => {
     return () => {
@@ -108,15 +117,23 @@ export default function Home() {
   // Trigger Scrape Job
   const handleFetch = async (e) => {
     if (e) e.preventDefault();
-    if (!url.trim() || isLoading) return;
+    if (isLoading) return;
+
+    if (!url.trim()) {
+      setError('Please enter or paste a public Facebook post URL first.');
+      urlInputRef.current?.focus();
+      return;
+    }
 
     setError('');
     setIsLoading(true);
     setStatus('Initializing');
     setProgress(mode === 'advanced' ? 'Connecting to Apify Cloud Scraper...' : 'Launching Playwright scraper session...');
 
+    const apiBase = getApiBase();
+
     try {
-      const res = await fetch('/api/scrape', {
+      const res = await fetch(`${apiBase}/api/scrape`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -125,9 +142,15 @@ export default function Home() {
         })
       });
 
-      const data = await res.json();
+      let data;
+      try {
+        data = await res.json();
+      } catch {
+        throw new Error(`Server returned HTTP ${res.status}. Could not connect to comment scraper backend.`);
+      }
+
       if (!res.ok) {
-        throw new Error(data.error || 'Failed to initiate scrape job.');
+        throw new Error(data?.error || 'Failed to initiate scrape job.');
       }
 
       const jobId = data.jobId;
@@ -135,7 +158,7 @@ export default function Home() {
 
       pollIntervalRef.current = setInterval(async () => {
         try {
-          const pollRes = await fetch(`/api/jobs/${jobId}`);
+          const pollRes = await fetch(`${apiBase}/api/jobs/${jobId}`);
           if (!pollRes.ok) return;
 
           const job = await pollRes.json();
@@ -272,6 +295,7 @@ export default function Home() {
             <div className="relative flex-1 flex items-center">
               <Link2 className="absolute left-3.5 text-slate-400 pointer-events-none" size={16} />
               <input
+                ref={urlInputRef}
                 type="text"
                 placeholder="Paste Facebook post URL (e.g., https://www.facebook.com/...)"
                 value={url}
@@ -292,8 +316,8 @@ export default function Home() {
 
             <button
               type="submit"
-              disabled={isLoading || !url.trim()}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-40 disabled:cursor-not-allowed text-white font-semibold text-xs px-5 py-2 shadow-sm transition-all"
+              disabled={isLoading}
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-5 py-2 shadow-sm transition-all cursor-pointer active:scale-95"
             >
               {isLoading ? (
                 <>
