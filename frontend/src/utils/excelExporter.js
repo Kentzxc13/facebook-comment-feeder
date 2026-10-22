@@ -1,4 +1,4 @@
-import ExcelJS from 'exceljs';
+import ExcelJS from 'exceljs/dist/exceljs.min.js';
 import { anonymizeComments } from './anonymizer.js';
 
 /**
