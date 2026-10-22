@@ -1,6 +1,13 @@
 import express from 'express';
 import cors from 'cors';
 import { fileURLToPath } from 'url';
+
+// Auto-load .env file if present (Node.js 20.6+)
+try {
+  process.loadEnvFile?.();
+} catch {
+  // .env file is optional
+}
 import { isValidFacebookUrl } from './utils/urlValidator.js';
 import { createJob, getJob, updateJob } from './jobs.js';
 import { scrapeFacebookComments } from './scraper.js';
