@@ -2,16 +2,32 @@
   "name": "comment-feeder",
   "version": "1.0.0",
   "private": true,
-  "workspaces": [
-    "backend",
-    "frontend"
-  ],
+  "type": "module",
   "scripts": {
-    "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"npm run dev --prefix backend\" \"npm run dev --prefix frontend\"",
-    "build": "npm run build --prefix frontend",
-    "test": "npm test --prefix backend && npm test --prefix frontend"
+    "dev": "concurrently -n \"backend,frontend\" -c \"blue,green\" \"node --watch backend/src/server.js\" \"cd frontend && next dev -p 3000\"",
+    "build": "cd frontend && next build",
+    "start": "node backend/src/server.js",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "exceljs": "^4.4.0",
+    "express": "^4.21.2",
+    "lucide-react": "^0.475.0",
+    "next": "^14.2.24",
+    "playwright": "^1.50.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1"
   },
   "devDependencies": {
-    "concurrently": "^9.1.2"
+    "@testing-library/jest-dom": "^6.6.3",
+    "@testing-library/react": "^16.2.0",
+    "autoprefixer": "^10.4.20",
+    "concurrently": "^9.1.2",
+    "jsdom": "^26.0.0",
+    "postcss": "^8.5.3",
+    "supertest": "^7.0.0",
+    "tailwindcss": "^3.4.17",
+    "vitest": "^3.0.5"
   }
 }
