@@ -290,7 +290,69 @@ export default function Home() {
 
       {/* BEGIN: URL Input Form Bar */}
       <section className="px-8 pb-3">
-        <form onSubmit={handleFetch} className="rounded-xl border border-slate-200/90 bg-slate-50/70 p-3 shadow-2xs">
+        <form onSubmit={handleFetch} className="rounded-2xl border border-slate-200/90 bg-slate-50/70 p-3.5 shadow-2xs">
+          {/* Mode Selector Toggle Tabs */}
+          <div className="flex flex-wrap items-center justify-between gap-2.5 mb-3">
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-bold text-slate-700 tracking-wider uppercase text-[11px]">
+                Engine:
+              </span>
+              <div className="inline-flex items-center rounded-xl border border-slate-200 bg-white p-1 text-xs shadow-2xs">
+                <button
+                  type="button"
+                  onClick={() => setMode('default')}
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    mode === 'default'
+                      ? 'bg-slate-900 text-white shadow-sm'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span className="text-amber-400">⚡</span>
+                  <span>Default</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                    mode === 'default' ? 'bg-slate-800 text-slate-200' : 'bg-slate-100 text-slate-600'
+                  }`}>
+                    ≤ 10 comments
+                  </span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setMode('advanced')}
+                  className={`flex items-center gap-2 rounded-lg px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    mode === 'advanced'
+                      ? 'bg-[#ff5733] text-white shadow-sm shadow-[#ff5733]/30'
+                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50'
+                  }`}
+                >
+                  <span>🚀</span>
+                  <span>Cloud API</span>
+                  <span className={`text-[10px] px-1.5 py-0.5 rounded font-mono font-medium ${
+                    mode === 'advanced' ? 'bg-[#e03d22] text-white' : 'bg-orange-50 text-orange-700 border border-orange-200/60'
+                  }`}>
+                    &gt; 10 comments
+                  </span>
+                </button>
+              </div>
+            </div>
+
+            {/* Quick Status Tag on top right of form */}
+            <div className="hidden sm:flex items-center text-xs">
+              {mode === 'advanced' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-amber-100/80 text-amber-900 text-[11px] font-semibold border border-amber-300/80">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 animate-pulse" />
+                  Apify Cloud Scraper Active
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-emerald-100/80 text-emerald-900 text-[11px] font-semibold border border-emerald-300/80">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500" />
+                  Local Playwright Active
+                </span>
+              )}
+            </div>
+          </div>
+
+          {/* URL Input Bar */}
           <div className="flex flex-col sm:flex-row gap-2.5">
             <div className="relative flex-1 flex items-center">
               <Link2 className="absolute left-3.5 text-slate-400 pointer-events-none" size={16} />
@@ -301,7 +363,7 @@ export default function Home() {
                 value={url}
                 onChange={(e) => setUrl(e.target.value)}
                 disabled={isLoading}
-                className="w-full pl-9 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#ff5733] focus:ring-1 focus:ring-[#ff5733] transition-all"
+                className="w-full pl-9 pr-9 py-2 bg-white border border-slate-200 rounded-lg text-xs sm:text-sm text-slate-800 placeholder-slate-400 outline-none focus:border-[#ff5733] focus:ring-1 focus:ring-[#ff5733] transition-all shadow-xs"
               />
               {url && !isLoading && (
                 <button
@@ -317,7 +379,7 @@ export default function Home() {
             <button
               type="submit"
               disabled={isLoading}
-              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-5 py-2 shadow-sm transition-all cursor-pointer active:scale-95"
+              className="inline-flex items-center justify-center gap-2 rounded-lg bg-[#ff5733] hover:bg-[#ff4d30] disabled:opacity-50 disabled:cursor-not-allowed text-white font-semibold text-xs px-6 py-2 shadow-sm transition-all cursor-pointer active:scale-95"
             >
               {isLoading ? (
                 <>
@@ -333,28 +395,36 @@ export default function Home() {
             </button>
           </div>
 
-          {/* Mode Guidance & Apify Quota Disclaimer */}
-          <div className="mt-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 px-3 py-2 rounded-lg bg-white border border-slate-200 text-xs">
-            <div className="flex items-center gap-2 text-slate-600">
-              <span className="font-semibold text-slate-900 flex items-center gap-1">
-                {mode === 'default' ? '⚡ Default Mode Selected:' : '🚀 Cloud API Mode Selected:'}
+          {/* Dynamic Live Disclaimer & Mode Info Banner */}
+          <div className={`mt-2.5 flex flex-col md:flex-row md:items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border text-xs transition-all duration-200 ${
+            mode === 'advanced'
+              ? 'bg-amber-50/90 border-amber-200 text-amber-950 shadow-2xs'
+              : 'bg-white border-slate-200 text-slate-700 shadow-2xs'
+          }`}>
+            <div className="flex items-center gap-2">
+              <span className={`font-bold flex items-center gap-1.5 ${
+                mode === 'advanced' ? 'text-amber-800' : 'text-slate-900'
+              }`}>
+                {mode === 'default' ? '⚡ Default Engine:' : '🚀 Cloud API Engine:'}
               </span>
-              <span>
+              <span className="text-xs">
                 {mode === 'default'
-                  ? 'Best for short posts with ≤ 10 comments (Quick local browser, consumes 0 API credits).'
-                  : 'Recommended for posts with > 10 comments (Deep scraper for nested & hidden replies).'}
+                  ? 'Runs locally on your machine. Best for short posts with ≤ 10 comments. Fast, private, and 0 credits.'
+                  : 'Deep-scrapes nested threads, replies, and hidden comments for long discussions with > 10 comments.'}
               </span>
             </div>
 
-            {mode === 'advanced' ? (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-50 border border-amber-200/80 text-amber-800 text-[11px] font-medium shrink-0">
-                <span>⚠️ Apify Quota Notice: Free tier has limited monthly credits (Max 250 comments / post).</span>
-              </div>
-            ) : (
-              <div className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 border border-emerald-200/80 text-emerald-700 text-[11px] font-medium shrink-0">
-                <span>✓ Free Unlimited Local Scraping</span>
-              </div>
-            )}
+            <div className="shrink-0">
+              {mode === 'advanced' ? (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-100 text-amber-900 border border-amber-300 font-semibold text-[11px]">
+                  ⚠️ Apify Quota: Limited monthly free credits (Max 250 comments / post)
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 font-medium text-[11px]">
+                  ✓ Free Unlimited Local Extraction
+                </span>
+              )}
+            </div>
           </div>
 
           {/* Loading / Error Banner */}
@@ -394,36 +464,6 @@ export default function Home() {
 
           {/* Right: Functional Controls */}
           <div className="flex flex-wrap items-center gap-2">
-            {/* Scraper Mode Pill Switcher with Comments Threshold Badges */}
-            <div className="inline-flex items-center rounded-lg border border-slate-200 bg-slate-50 p-0.5 text-xs">
-              <button
-                type="button"
-                onClick={() => setMode('default')}
-                title="Default: Best for posts with <= 10 comments (Fast & free local browser)"
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all ${
-                  mode === 'default'
-                    ? 'bg-white text-slate-900 shadow-2xs font-semibold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <span>⚡ Default</span>
-                <span className="text-[10px] px-1 py-0.2 rounded bg-slate-100 text-slate-600 font-mono">≤10</span>
-              </button>
-              <button
-                type="button"
-                onClick={() => setMode('advanced')}
-                title="Cloud API: For posts with > 10 comments (Apify deep scraper for all nested comments)"
-                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1 font-medium transition-all ${
-                  mode === 'advanced'
-                    ? 'bg-white text-[#ff5733] shadow-2xs font-semibold'
-                    : 'text-slate-500 hover:text-slate-800'
-                }`}
-              >
-                <span>🚀 Cloud API</span>
-                <span className="text-[10px] px-1 py-0.2 rounded bg-orange-100 text-orange-700 font-mono">&gt;10</span>
-              </button>
-            </div>
-
             {/* Blind Masking Toggle Switch */}
             <label className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg border border-slate-200 text-xs text-slate-600 cursor-pointer hover:bg-slate-50 select-none transition-colors">
               <input

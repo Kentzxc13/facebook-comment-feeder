@@ -13,12 +13,12 @@ describe('App Dashboard', () => {
 
   it('switches between Default and Cloud API mode with quota notice', () => {
     render(<Home />);
-    expect(screen.getByText(/Free Unlimited Local Scraping/i)).toBeInTheDocument();
+    expect(screen.getByText(/Free Unlimited Local/i)).toBeInTheDocument();
 
     const cloudBtn = screen.getByRole('button', { name: /Cloud API/i });
     fireEvent.click(cloudBtn);
 
-    expect(screen.getByText(/Apify Quota Notice/i)).toBeInTheDocument();
+    expect(screen.getByText(/Apify Quota/i)).toBeInTheDocument();
     expect(screen.getByText(/Max 250 comments \/ post/i)).toBeInTheDocument();
   });
 });
