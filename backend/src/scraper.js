@@ -1,5 +1,6 @@
 import { chromium } from 'playwright';
 import { isValidFacebookUrl } from './utils/urlValidator.js';
+import { normalizeFacebookDate } from './utils/dateNormalizer.js';
 
 /**
  * Parses Facebook's container aria-label (e.g. "Comment by Jane Doe 2 hours ago")
@@ -311,7 +312,7 @@ export async function scrapeFacebookComments(url, onProgress = () => {}) {
         uniqueMap.set(dedupeKey, {
           id: `cmt-${idx++}`,
           author: author || 'Unknown',
-          date: date || 'Recent',
+          date: normalizeFacebookDate(date),
           text
         });
       }

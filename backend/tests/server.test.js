@@ -5,6 +5,10 @@ vi.mock('../src/scraper.js', () => ({
   scrapeFacebookComments: vi.fn().mockResolvedValue([])
 }));
 
+vi.mock('../src/services/apiScraper.js', () => ({
+  scrapeFacebookCommentsViaApi: vi.fn().mockResolvedValue([])
+}));
+
 import { app } from '../src/server.js';
 
 describe('Backend API Endpoints', () => {
@@ -30,6 +34,16 @@ describe('Backend API Endpoints', () => {
     expect(jobRes.status).toBe(200);
     expect(jobRes.body.id).toBe(res.body.jobId);
     expect(jobRes.body.status).toBeDefined();
+  });
+
+  it('POST /api/scrape accepts advanced mode with apiKey', async () => {
+    const res = await request(app).post('/api/scrape').send({
+      url: 'https://www.facebook.com/user/posts/123456',
+      mode: 'advanced',
+      apiKey: 'test-token'
+    });
+    expect(res.status).toBe(200);
+    expect(res.body.jobId).toBeDefined();
   });
 
   it('GET /api/jobs/:id returns 404 for unknown job ID', async () => {

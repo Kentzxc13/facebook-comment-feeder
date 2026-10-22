@@ -7,6 +7,12 @@ vi.mock('../src/scraper.js', () => ({
   ])
 }));
 
+vi.mock('../src/services/apiScraper.js', () => ({
+  scrapeFacebookCommentsViaApi: vi.fn().mockResolvedValue([
+    { id: 'cmt-1', author: 'Mark Z', date: 'Yesterday', text: 'Building the metaverse' }
+  ])
+}));
+
 import { app } from '../src/server.js';
 import { anonymizeComments } from '../../frontend/src/utils/anonymizer.js';
 import { generateWorkbookBuffer } from '../../frontend/src/utils/excelExporter.js';

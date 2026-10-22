@@ -15,13 +15,20 @@ import {
   Activity,
   Inbox,
   SearchX,
-  User
+  User,
+  Zap,
+  Cloud,
+  Key,
+  ExternalLink
 } from 'lucide-react';
 import { anonymizeComments } from '../utils/anonymizer.js';
 import { exportToExcel } from '../utils/excelExporter.js';
 
 export default function Home() {
   const [url, setUrl] = useState('');
+  const [mode, setMode] = useState('default'); // 'default' | 'advanced'
+  const [apiKey, setApiKey] = useState('');
+  const [showApiSettings, setShowApiSettings] = useState(false);
   const [rawComments, setRawComments] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [progress, setProgress] = useState('');
@@ -32,6 +39,21 @@ export default function Home() {
   const [status, setStatus] = useState('Idle');
 
   const pollIntervalRef = useRef(null);
+
+  // Load saved API key on client
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem('fb_cf_apify_token');
+      if (saved) setApiKey(saved);
+    } catch {}
+  }, []);
+
+  const handleApiKeyChange = (val) => {
+    setApiKey(val);
+    try {
+      localStorage.setItem('fb_cf_apify_token', val);
+    } catch {}
+  };
 
   useEffect(() => {
     return () => {
@@ -73,7 +95,11 @@ export default function Home() {
       const res = await fetch('/api/scrape', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ url: url.trim() })
+        body: JSON.stringify({
+          url: url.trim(),
+          mode,
+          apiKey: mode === 'advanced' ? apiKey.trim() : undefined
+        })
       });
 
       const data = await res.json();
@@ -162,6 +188,76 @@ export default function Home() {
       {/* URL Input Bar */}
       <section className="bg-[#111726]/80 backdrop-blur-md border border-white/[0.08] rounded-2xl p-6 sm:p-7 mb-8 shadow-card focus-within:border-indigo-500/50 transition-all">
         <form onSubmit={handleFetch}>
+          {/* Scraper Mode Segmented Selector */}
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-5">
+            <div className="inline-flex p-1 bg-[#090d16] border border-white/[0.08] rounded-xl text-xs">
+              <button
+                type="button"
+                onClick={() => setMode('default')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-all ${
+                  mode === 'default'
+                    ? 'bg-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Zap size={14} className={mode === 'default' ? 'text-amber-300' : ''} />
+                <span>Default (Free / Local)</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setMode('advanced')}
+                className={`flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg font-medium transition-all ${
+                  mode === 'advanced'
+                    ? 'bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-sm'
+                    : 'text-slate-400 hover:text-slate-200'
+                }`}
+              >
+                <Cloud size={14} className={mode === 'advanced' ? 'text-cyan-300' : ''} />
+                <span>Advanced (Cloud API)</span>
+              </button>
+            </div>
+
+            <div className="text-xs text-slate-400">
+              {mode === 'default' ? (
+                <span className="text-slate-400">⚡ Best for regular posts (&lt; 100 comments) • Free</span>
+              ) : (
+                <span className="text-cyan-400 font-medium">🚀 Best for large threads (100+ comments)</span>
+              )}
+            </div>
+          </div>
+
+          {/* Advanced Mode API Key Input Bar */}
+          {mode === 'advanced' && (
+            <div className="mb-5 p-4 rounded-xl bg-violet-950/20 border border-violet-500/25 text-xs">
+              <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2 mb-2">
+                <label className="flex items-center gap-1.5 font-medium text-slate-200">
+                  <Key size={14} className="text-violet-400" />
+                  <span>Apify API Token (Optional if configured in .env)</span>
+                </label>
+                <a
+                  href="https://console.apify.com/account/integrations"
+                  target="_blank"
+                  rel="noreferrer"
+                  className="inline-flex items-center gap-1 text-violet-400 hover:text-violet-300 transition-colors"
+                >
+                  <span>Get Free Token</span>
+                  <ExternalLink size={12} />
+                </a>
+              </div>
+              <input
+                type="password"
+                placeholder="Enter your apify_api_... token (persisted locally in browser)"
+                value={apiKey}
+                onChange={(e) => handleApiKeyChange(e.target.value)}
+                className="w-full px-3.5 py-2.5 bg-[#090d16]/90 border border-white/[0.08] rounded-lg text-slate-200 placeholder-slate-500 text-xs outline-none focus:border-violet-500 transition-all font-mono"
+              />
+              <p className="mt-2 text-[11px] text-slate-400">
+                Apify provides $5 free monthly credit. If left empty, the backend will check for <code className="text-slate-300 font-mono">APIFY_API_TOKEN</code> in your environment.
+              </p>
+            </div>
+          )}
+
           <div className="flex flex-col sm:flex-row gap-3">
             <div className="relative flex-1 flex items-center">
               <Link2 className="absolute left-4 text-slate-500 pointer-events-none" size={18} />
@@ -325,7 +421,7 @@ export default function Home() {
               <thead>
                 <tr className="bg-[#0c1220] border-b border-white/[0.08] text-[11px] font-bold text-slate-400 uppercase tracking-wider">
                   <th className="py-3.5 px-4 text-center w-14">#</th>
-                  <th className="py-3.5 px-4 w-40">Date</th>
+                  <th className="py-3.5 px-4 w-48">Date (MM/DD/YYYY)</th>
                   <th className="py-3.5 px-4 w-52">Commenter</th>
                   <th className="py-3.5 px-4">Comment</th>
                 </tr>

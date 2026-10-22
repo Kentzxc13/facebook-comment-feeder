@@ -18,7 +18,7 @@ export async function generateWorkbookBuffer(data) {
   // Define Columns
   worksheet.columns = [
     { header: 'No.', key: 'no', width: 8 },
-    { header: 'Date', key: 'date', width: 22 },
+    { header: 'Date (MM/DD/YYYY)', key: 'date', width: 24 },
     { header: 'Commenter Name', key: 'author', width: 28 },
     { header: 'Comment Text', key: 'text', width: 65 }
   ];

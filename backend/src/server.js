@@ -4,6 +4,7 @@ import { fileURLToPath } from 'url';
 import { isValidFacebookUrl } from './utils/urlValidator.js';
 import { createJob, getJob, updateJob } from './jobs.js';
 import { scrapeFacebookComments } from './scraper.js';
+import { scrapeFacebookCommentsViaApi } from './services/apiScraper.js';
 
 export const app = express();
 
@@ -17,7 +18,7 @@ app.get('/health', (req, res) => {
 
 // Initiate scraping job
 app.post('/api/scrape', async (req, res) => {
-  const { url } = req.body || {};
+  const { url, mode = 'default', apiKey } = req.body || {};
 
   const validation = isValidFacebookUrl(url);
   if (!validation.valid) {
@@ -29,11 +30,21 @@ app.post('/api/scrape', async (req, res) => {
   // Run scraper asynchronously in background
   (async () => {
     try {
-      updateJob(job.id, { status: 'scraping', progress: 'Starting scraper session...' });
-
-      const comments = await scrapeFacebookComments(job.url, (progressMsg) => {
-        updateJob(job.id, { progress: progressMsg });
+      updateJob(job.id, {
+        status: 'scraping',
+        progress: mode === 'advanced' ? 'Connecting to Apify Cloud Scraper...' : 'Starting local browser session...'
       });
+
+      const onProgress = (progressMsg) => {
+        updateJob(job.id, { progress: progressMsg });
+      };
+
+      let comments = [];
+      if (mode === 'advanced') {
+        comments = await scrapeFacebookCommentsViaApi(job.url, { token: apiKey }, onProgress);
+      } else {
+        comments = await scrapeFacebookComments(job.url, onProgress);
+      }
 
       updateJob(job.id, {
         status: 'completed',
